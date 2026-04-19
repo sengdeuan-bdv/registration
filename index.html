@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pivot Analysis Dashboard</title>
+
+    <!-- Tailwind CSS for Modern Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- jQuery & jQuery UI (Required for PivotTable.js drag & drop) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    
+    <!-- PivotTable.js CSS & JS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.js"></script>
+
+    <!-- PapaParse for CSV reading -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Customizing the PivotTable.js UI to look modern and resemble Excel */
+        .pvtUi {
+            font-family: inherit;
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .pvtAxisContainer, .pvtVals {
+            background: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            padding: 12px;
+            border-radius: 6px;
+            min-height: 60px;
+        }
+
+        .pvtAxisContainer li span.pvtAttr {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: grab;
+            margin: 4px;
+            display: inline-block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #334155;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            transition: all 0.2s;
+        }
+        
+        .pvtAxisContainer li span.pvtAttr:hover {
+            border-color: #94a3b8;
+            background: #f1f5f9;
+        }
+        
+        .pvtAxisContainer li span.pvtAttr:active {
+            cursor: grabbing;
+        }
+
+        .pvtTriangle {
+            color: #64748b;
+            margin-left: 6px;
+            cursor: pointer;
+        }
+
+        select.pvtAggregator {
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: 1px solid #cbd5e1;
+            margin-bottom: 8px;
+            font-size: 0.875rem;
+            background-color: white;
+            color: #1e293b;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .table-scroll-box {
+            max-height: 400px; /* Limits the height to create a small scrollable box */
+            max-width: 100%;
+            overflow: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            margin-top: 16px;
+        }
+
+        .pvtTable {
+            width: 100%;
+            border-collapse: separate; /* Changed to separate so sticky headers work */
+            border-spacing: 0;
+            font-size: 0.875rem;
+        }
+
+        .pvtTable th, .pvtTable td {
+            border-bottom: 1px solid #e2e8f0;
+            border-right: 1px solid #e2e8f0;
+            padding: 8px 12px;
+            text-align: right;
+            color: #334155;
+            background-color: #ffffff;
+        }
+
+        .pvtTable thead th, .pvtTable .pvtAxisLabel {
+            background-color: #f1f5f9;
+            font-weight: 600;
+            text-align: left;
+            color: #0f172a;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .pvtTable .pvtTotal, .pvtTable .pvtGrandTotal {
+            font-weight: 700;
+            background-color: #f8fafc;
+        }
+        
+        /* Dropzone styling */
+        .dropzone-active {
+            border-color: #3b82f6 !important;
+            background-color: #eff6ff !important;
+        }
+
+        /* Loading overlay */
+        #loading {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 text-white p-2 rounded-lg">
+                <i data-lucide="bar-chart-2" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-slate-900">Advanced Pivot Dashboard</h1>
+                <p class="text-xs text-slate-500">Drag & drop analysis, aggregations, and distinct counts</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="text-sm text-slate-500 flex items-center gap-2">
+                <i data-lucide="info" class="w-4 h-4"></i>
+                Supported: CSV files
+            </div>
+            <button id="reset-btn" class="hidden px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-sm font-medium transition-colors border border-slate-300 shadow-sm">
+                Clear & Upload New
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-6 flex flex-col gap-6 max-w-[1600px] mx-auto w-full">
+
+        <!-- File Uploader Area -->
+        <div id="upload-section" class="w-full">
+            <label for="csv-file" id="dropzone" class="flex flex-col items-center justify-center w-full h-48 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-white hover:bg-slate-50 transition-colors">
+                <div class="flex flex-col items-center justify-center pt-5 pb-6 text-center px-4">
+                    <i data-lucide="file-spreadsheet" class="w-10 h-10 mb-3 text-blue-500"></i>
+                    <p class="mb-2 text-sm text-slate-600 font-medium">
+                        <span class="font-semibold text-blue-600">Click to upload</span> or drag and drop your CSV file here
+                    </p>
+                    <p class="text-xs text-slate-500">Load your AppSheet Data to begin pivoting</p>
+                </div>
+                <input id="csv-file" type="file" accept=".csv" class="hidden" />
+            </label>
+        </div>
+
+        <!-- Dashboard / Pivot Area -->
+        <div id="dashboard-section" class="hidden flex-col gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="table-properties" class="w-5 h-5 text-indigo-500"></i>
+                    Pivot Analysis Workspace
+                </h2>
+                <div class="text-xs px-3 py-1 bg-amber-100 text-amber-800 rounded-full font-medium flex items-center gap-1">
+                    <i data-lucide="mouse-pointer-2" class="w-3 h-3"></i>
+                    Drag attributes into Rows & Columns
+                </div>
+            </div>
+            
+            <p class="text-sm text-slate-500 mb-4">
+                Use the dropdown on the right to change the calculation formula (Sum, Average, Count, Count Unique / Distinct Count).
+            </p>
+
+            <!-- Search / Filter Boxes -->
+            <div class="flex flex-col md:flex-row gap-4 mb-4">
+                <div class="flex-1 relative">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+                    <input type="text" id="data-search" class="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-shadow" placeholder="Search / filter data records (e.g., 'Vientiane', '2024')...">
+                </div>
+                <div class="flex-1 relative">
+                    <i data-lucide="list-filter" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+                    <input type="text" id="field-search" class="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-shadow" placeholder="Search available fields to drag (e.g., 'Participants')...">
+                </div>
+            </div>
+
+            <div class="overflow-x-auto pb-4">
+                <div id="pivot-output" class="min-w-[800px]"></div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Loading Overlay -->
+    <div id="loading" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
+        <i data-lucide="loader-2" class="w-12 h-12 text-white animate-spin mb-4"></i>
+        <p class="text-white font-medium text-lg">Processing Data...</p>
+    </div>
+
+    <script>
+        // Initialize Icons
+        lucide.createIcons();
+
+        let fullCSVData = [];
+        let pivotConfigState = {};
+        let searchDebounceTimer;
+
+        // Sample Data Fallback (from user's snippet)
+        const sampleCSV = `"Event ID","Event Province","Event District","Event Domain","Event type","Total number of participants","Total number of female participants"
+"Event-ODX-001","Oudomxay","Nga","LMG","Meeting",6,4
+"Event-VTE-097","Vientiane province","Vangvieng","RDQA","Training",45,20
+"Event-VTE-098","Vientiane province","Kasy","RDQA","Training",30,15
+"Event-ODX-002","Oudomxay","Xay","LMG","Meeting",12,8
+"Event-BOK-011","Bokeo","Houayxay","Data","Workshop",25,12`;
+
+        $(document).ready(function() {
+            // Elements
+            const dropzone = $('#dropzone');
+            const fileInput = $('#csv-file');
+            const uploadSection = $('#upload-section');
+            const dashboardSection = $('#dashboard-section');
+            const pivotOutput = $('#pivot-output');
+            const resetBtn = $('#reset-btn');
+            const loading = $('#loading');
+
+            // Set up Default Sample Data so users see how it works instantly
+            Papa.parse(sampleCSV, {
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    fullCSVData = results.data;
+                    renderPivot(fullCSVData, {
+                        rows: ["Event Province"],
+                        cols: ["Event type"],
+                        vals: ["Total number of participants"],
+                        aggregatorName: "Sum"
+                    });
+                    dashboardSection.removeClass('hidden').addClass('flex');
+                }
+            });
+
+            // Drag and Drop events for styling
+            dropzone.on('dragover', function(e) {
+                e.preventDefault();
+                dropzone.addClass('dropzone-active');
+            });
+            dropzone.on('dragleave', function(e) {
+                e.preventDefault();
+                dropzone.removeClass('dropzone-active');
+            });
+            dropzone.on('drop', function(e) {
+                e.preventDefault();
+                dropzone.removeClass('dropzone-active');
+                if (e.originalEvent.dataTransfer.files.length) {
+                    fileInput[0].files = e.originalEvent.dataTransfer.files;
+                    handleFileSelect();
+                }
+            });
+
+            // File input change
+            fileInput.on('change', handleFileSelect);
+
+            // Reset Button
+            resetBtn.on('click', function() {
+                uploadSection.show();
+                resetBtn.addClass('hidden');
+                fileInput.val('');
+                // Scroll to top
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+
+            function handleFileSelect() {
+                const file = fileInput[0].files[0];
+                if (!file) return;
+
+                // Show loading
+                loading.css('display', 'flex');
+
+                Papa.parse(file, {
+                    header: true,
+                    dynamicTyping: true, // Converts numbers automatically for Sum/Average
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        loading.hide();
+                        uploadSection.hide();
+                        resetBtn.removeClass('hidden');
+                        dashboardSection.removeClass('hidden').addClass('flex');
+                        
+                        fullCSVData = results.data;
+                        
+                        // Intelligent Defaults based on user's header names
+                        const headers = results.meta.fields || [];
+                        let defaultRows = [];
+                        let defaultCols = [];
+                        let defaultVal = "";
+
+                        if (headers.includes("Event Province")) defaultRows.push("Event Province");
+                        if (headers.includes("Event Domain")) defaultCols.push("Event Domain");
+                        else if (headers.includes("Event type")) defaultCols.push("Event type");
+
+                        if (headers.includes("Total number of participants")) {
+                            defaultVal = "Total number of participants";
+                        }
+
+                        renderPivot(fullCSVData, {
+                            rows: defaultRows,
+                            cols: defaultCols,
+                            vals: defaultVal ? [defaultVal] : [],
+                            aggregatorName: "Sum"
+                        });
+                    },
+                    error: function(error) {
+                        loading.hide();
+                        alert("Error parsing CSV file: " + error.message);
+                    }
+                });
+            }
+
+            function renderPivot(data, configOverrides = {}) {
+                // Merge existing state with any new overrides
+                let finalConfig = $.extend(true, {}, pivotConfigState, configOverrides);
+                
+                pivotOutput.pivotUI(data, {
+                    ...finalConfig,
+                    aggregators: $.extend({}, $.pivotUtilities.aggregators),
+                    rendererName: "Table",
+                    onRefresh: function(config) {
+                        // Capture state to preserve dragging/dropdowns when filtering data
+                        pivotConfigState = {
+                            rows: config.rows,
+                            cols: config.cols,
+                            vals: config.vals,
+                            aggregatorName: config.aggregatorName,
+                            inclusions: config.inclusions,
+                            exclusions: config.exclusions
+                        };
+                        
+                        // Wrap the generated table in a scrollable box
+                        $('.pvtTable').wrap('<div class="table-scroll-box"></div>');
+                        
+                        // Re-apply field filter if active
+                        triggerFieldSearch();
+                    }
+                }, true); // The 'true' parameter forces PivotTable to overwrite the existing element
+            }
+
+            // --- Filtering Logic ---
+
+            // 1. Data Filter
+            $('#data-search').on('input', function() {
+                clearTimeout(searchDebounceTimer);
+                const term = $(this).val().toLowerCase();
+                
+                searchDebounceTimer = setTimeout(() => {
+                    if (!term) {
+                        renderPivot(fullCSVData);
+                        return;
+                    }
+                    
+                    // Filter rows where any value matches the search term
+                    const filteredData = fullCSVData.filter(row => {
+                        return Object.values(row).some(val => 
+                            val !== null && val !== undefined && val.toString().toLowerCase().includes(term)
+                        );
+                    });
+                    
+                    renderPivot(filteredData);
+                }, 300); // 300ms debounce
+            });
+
+            // 2. Field Filter
+            function triggerFieldSearch() {
+                const term = $('#field-search').val().toLowerCase();
+                if (!term) {
+                    $('.pvtUnused li').show();
+                    return;
+                }
+                
+                $('.pvtUnused li').each(function() {
+                    const text = $(this).find('.pvtAttr').text().toLowerCase();
+                    $(this).toggle(text.includes(term));
+                });
+            }
+
+            $('#field-search').on('input', triggerFieldSearch);
+
+        });
+    </script>
+</body>
+</html>
