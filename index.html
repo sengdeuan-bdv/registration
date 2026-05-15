@@ -1,414 +1,651 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pivot Analysis Dashboard</title>
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Table, RefreshCw, UploadCloud, FileText, Filter, LayoutGrid, CheckSquare, Square, MinusSquare, ChevronDown, Users, Calendar, Download, FileSpreadsheet } from 'lucide-react';
 
-    <!-- Tailwind CSS for Modern Styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
+// --- ຟັງຊັນສຳລັບແປງຂໍ້ມູນ CSV ---
+const parseCSV = (str) => {
+  const arr = [];
+  let quote = false;
+  for (let row = 0, col = 0, c = 0; c < str.length; c++) {
+    let cc = str[c], nc = str[c + 1];
+    arr[row] = arr[row] || [];
+    arr[row][col] = arr[row][col] || '';
+    if (cc === '"' && quote && nc === '"') { arr[row][col] += cc; ++c; continue; }
+    if (cc === '"') { quote = !quote; continue; }
+    if (cc === ',' && !quote) { ++col; continue; }
+    if (cc === '\r' && nc === '\n' && !quote) { ++row; col = 0; ++c; continue; }
+    if (cc === '\n' && !quote) { ++row; col = 0; continue; }
+    if (cc === '\r' && !quote) { ++row; col = 0; continue; }
+    arr[row][col] += cc;
+  }
+  if (arr.length === 0) return { headers: [], data: [] };
+  const headers = arr[0].map(h => h.trim());
+  const data = [];
+  for (let i = 1; i < arr.length; i++) {
+    if (arr[i].length === 1 && arr[i][0] === '') continue;
+    const rowObj = {};
+    headers.forEach((header, index) => {
+      rowObj[header] = arr[i][index] !== undefined ? arr[i][index].trim() : '';
+    });
+    data.push(rowObj);
+  }
+  return { headers, data };
+};
 
-    <!-- jQuery & jQuery UI (Required for PivotTable.js drag & drop) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
-    
-    <!-- PivotTable.js CSS & JS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.js"></script>
+const getMonthYear = (dateString) => {
+  if (!dateString) return 'ບໍ່ລະບຸ';
+  const parts = dateString.split('/');
+  if (parts.length === 3) {
+    const m = parts[0].padStart(2, '0');
+    const y = parts[2];
+    return `${m}/${y}`;
+  }
+  return dateString;
+};
 
-    <!-- PapaParse for CSV reading -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+// --- Component ສຳລັບ Multi-Select Dropdown ທຳມະດາ ---
+const MultiSelect = ({ label, options, selected, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-    <style>
-        /* Customizing the PivotTable.js UI to look modern and resemble Excel */
-        .pvtUi {
-            font-family: inherit;
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            background: #ffffff;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        
-        .pvtAxisContainer, .pvtVals {
-            background: #f8fafc;
-            border: 1px dashed #cbd5e1;
-            padding: 12px;
-            border-radius: 6px;
-            min-height: 60px;
-        }
+  const toggleOption = (option) => {
+    if (selected.includes(option)) {
+      onChange(selected.filter(item => item !== option));
+    } else {
+      onChange([...selected, option]);
+    }
+  };
 
-        .pvtAxisContainer li span.pvtAttr {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: grab;
-            margin: 4px;
-            display: inline-block;
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #334155;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            transition: all 0.2s;
-        }
-        
-        .pvtAxisContainer li span.pvtAttr:hover {
-            border-color: #94a3b8;
-            background: #f1f5f9;
-        }
-        
-        .pvtAxisContainer li span.pvtAttr:active {
-            cursor: grabbing;
-        }
+  const isAllSelected = selected.length === 0 || selected.length === options.length;
 
-        .pvtTriangle {
-            color: #64748b;
-            margin-left: 6px;
-            cursor: pointer;
-        }
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <label className="block text-xs font-bold text-indigo-900 uppercase tracking-wider mb-2">
+        {label}
+      </label>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between bg-white border border-indigo-200 hover:border-indigo-400 rounded-xl px-4 py-3 text-sm text-left focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
+      >
+        <span className="truncate pr-2 font-medium text-slate-700">
+          {isAllSelected ? 'ລວມທັງໝົດ' : `ເລືອກແລ້ວ (${selected.length})`}
+        </span>
+        <ChevronDown size={18} className={`text-indigo-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
 
-        select.pvtAggregator {
-            padding: 6px 10px;
-            border-radius: 4px;
-            border: 1px solid #cbd5e1;
-            margin-bottom: 8px;
-            font-size: 0.875rem;
-            background-color: white;
-            color: #1e293b;
-            outline: none;
-            cursor: pointer;
-        }
-
-        .table-scroll-box {
-            max-height: 400px; /* Limits the height to create a small scrollable box */
-            max-width: 100%;
-            overflow: auto;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-            margin-top: 16px;
-        }
-
-        .pvtTable {
-            width: 100%;
-            border-collapse: separate; /* Changed to separate so sticky headers work */
-            border-spacing: 0;
-            font-size: 0.875rem;
-        }
-
-        .pvtTable th, .pvtTable td {
-            border-bottom: 1px solid #e2e8f0;
-            border-right: 1px solid #e2e8f0;
-            padding: 8px 12px;
-            text-align: right;
-            color: #334155;
-            background-color: #ffffff;
-        }
-
-        .pvtTable thead th, .pvtTable .pvtAxisLabel {
-            background-color: #f1f5f9;
-            font-weight: 600;
-            text-align: left;
-            color: #0f172a;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-
-        .pvtTable .pvtTotal, .pvtTable .pvtGrandTotal {
-            font-weight: 700;
-            background-color: #f8fafc;
-        }
-        
-        /* Dropzone styling */
-        .dropzone-active {
-            border-color: #3b82f6 !important;
-            background-color: #eff6ff !important;
-        }
-
-        /* Loading overlay */
-        #loading {
-            display: none;
-        }
-    </style>
-</head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
-
-    <!-- Header -->
-    <header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-        <div class="flex items-center gap-3">
-            <div class="bg-blue-600 text-white p-2 rounded-lg">
-                <i data-lucide="bar-chart-2" class="w-6 h-6"></i>
+      {isOpen && (
+        <div className="absolute z-50 mt-2 w-full sm:w-72 bg-white border border-indigo-100 rounded-xl shadow-xl max-h-64 overflow-y-auto animate-in fade-in zoom-in duration-150">
+          <div 
+            className="flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-indigo-100 sticky top-0 bg-white/95 backdrop-blur-sm transition-colors"
+            onClick={() => onChange([])}
+          >
+            {isAllSelected ? <CheckSquare size={18} className="text-indigo-600" /> : <Square size={18} className="text-slate-300" />}
+            <span className="text-sm font-bold text-indigo-900">ເລືອກທັງໝົດ (Clear Filter)</span>
+          </div>
+          {options.map(option => (
+            <div 
+              key={option} 
+              className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors"
+              onClick={() => toggleOption(option)}
+            >
+              {selected.includes(option) ? (
+                <CheckSquare size={18} className="text-indigo-600" />
+              ) : (
+                <Square size={18} className="text-slate-300" />
+              )}
+              <span className={`text-sm ${selected.includes(option) ? 'text-indigo-900 font-medium' : 'text-slate-600'}`}>
+                {option || 'ບໍ່ລະບຸ'}
+              </span>
             </div>
-            <div>
-                <h1 class="text-xl font-bold text-slate-900">Advanced Pivot Dashboard</h1>
-                <p class="text-xs text-slate-500">Drag & drop analysis, aggregations, and distinct counts</p>
-            </div>
+          ))}
         </div>
-        <div class="flex items-center gap-4">
-            <div class="text-sm text-slate-500 flex items-center gap-2">
-                <i data-lucide="info" class="w-4 h-4"></i>
-                Supported: CSV files
-            </div>
-            <button id="reset-btn" class="hidden px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-sm font-medium transition-colors border border-slate-300 shadow-sm">
-                Clear & Upload New
-            </button>
-        </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="flex-1 p-6 flex flex-col gap-6 max-w-[1600px] mx-auto w-full">
-
-        <!-- File Uploader Area -->
-        <div id="upload-section" class="w-full">
-            <label for="csv-file" id="dropzone" class="flex flex-col items-center justify-center w-full h-48 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-white hover:bg-slate-50 transition-colors">
-                <div class="flex flex-col items-center justify-center pt-5 pb-6 text-center px-4">
-                    <i data-lucide="file-spreadsheet" class="w-10 h-10 mb-3 text-blue-500"></i>
-                    <p class="mb-2 text-sm text-slate-600 font-medium">
-                        <span class="font-semibold text-blue-600">Click to upload</span> or drag and drop your CSV file here
-                    </p>
-                    <p class="text-xs text-slate-500">Load your AppSheet Data to begin pivoting</p>
-                </div>
-                <input id="csv-file" type="file" accept=".csv" class="hidden" />
-            </label>
-        </div>
-
-        <!-- Dashboard / Pivot Area -->
-        <div id="dashboard-section" class="hidden flex-col gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-            <div class="flex items-center justify-between mb-2">
-                <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
-                    <i data-lucide="table-properties" class="w-5 h-5 text-indigo-500"></i>
-                    Pivot Analysis Workspace
-                </h2>
-                <div class="text-xs px-3 py-1 bg-amber-100 text-amber-800 rounded-full font-medium flex items-center gap-1">
-                    <i data-lucide="mouse-pointer-2" class="w-3 h-3"></i>
-                    Drag attributes into Rows & Columns
-                </div>
-            </div>
-            
-            <p class="text-sm text-slate-500 mb-4">
-                Use the dropdown on the right to change the calculation formula (Sum, Average, Count, Count Unique / Distinct Count).
-            </p>
-
-            <!-- Search / Filter Boxes -->
-            <div class="flex flex-col md:flex-row gap-4 mb-4">
-                <div class="flex-1 relative">
-                    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
-                    <input type="text" id="data-search" class="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-shadow" placeholder="Search / filter data records (e.g., 'Vientiane', '2024')...">
-                </div>
-                <div class="flex-1 relative">
-                    <i data-lucide="list-filter" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
-                    <input type="text" id="field-search" class="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-shadow" placeholder="Search available fields to drag (e.g., 'Participants')...">
-                </div>
-            </div>
-
-            <div class="overflow-x-auto pb-4">
-                <div id="pivot-output" class="min-w-[800px]"></div>
-            </div>
-        </div>
-
-    </main>
-
-    <!-- Loading Overlay -->
-    <div id="loading" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
-        <i data-lucide="loader-2" class="w-12 h-12 text-white animate-spin mb-4"></i>
-        <p class="text-white font-medium text-lg">Processing Data...</p>
+      )}
     </div>
+  );
+};
 
-    <script>
-        // Initialize Icons
-        lucide.createIcons();
+// --- Component ສຳລັບຈັດການວັນທີແຍກເປັນ ປີ ແລະ ເດືອນ ---
+const DateGroupMultiSelect = ({ label, options, selected, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [expandedYears, setExpandedYears] = useState({});
+  const dropdownRef = useRef(null);
 
-        let fullCSVData = [];
-        let pivotConfigState = {};
-        let searchDebounceTimer;
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-        // Sample Data Fallback (from user's snippet)
-        const sampleCSV = `"Event ID","Event Province","Event District","Event Domain","Event type","Total number of participants","Total number of female participants"
-"Event-ODX-001","Oudomxay","Nga","LMG","Meeting",6,4
-"Event-VTE-097","Vientiane province","Vangvieng","RDQA","Training",45,20
-"Event-VTE-098","Vientiane province","Kasy","RDQA","Training",30,15
-"Event-ODX-002","Oudomxay","Xay","LMG","Meeting",12,8
-"Event-BOK-011","Bokeo","Houayxay","Data","Workshop",25,12`;
+  const totalMonths = options.reduce((acc, group) => acc + group.months.length, 0);
+  const isAllSelected = selected.length === 0 || selected.length === totalMonths;
 
-        $(document).ready(function() {
-            // Elements
-            const dropzone = $('#dropzone');
-            const fileInput = $('#csv-file');
-            const uploadSection = $('#upload-section');
-            const dashboardSection = $('#dashboard-section');
-            const pivotOutput = $('#pivot-output');
-            const resetBtn = $('#reset-btn');
-            const loading = $('#loading');
+  const toggleYear = (group, e) => {
+    e.stopPropagation();
+    const groupMonths = group.months;
+    const isAllInGroupSelected = groupMonths.length > 0 && groupMonths.every(m => selected.includes(m));
 
-            // Set up Default Sample Data so users see how it works instantly
-            Papa.parse(sampleCSV, {
-                header: true,
-                dynamicTyping: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    fullCSVData = results.data;
-                    renderPivot(fullCSVData, {
-                        rows: ["Event Province"],
-                        cols: ["Event type"],
-                        vals: ["Total number of participants"],
-                        aggregatorName: "Sum"
-                    });
-                    dashboardSection.removeClass('hidden').addClass('flex');
-                }
-            });
+    if (isAllInGroupSelected) {
+      onChange(selected.filter(m => !groupMonths.includes(m)));
+    } else {
+      const newSelected = [...selected];
+      groupMonths.forEach(m => {
+        if (!newSelected.includes(m)) newSelected.push(m);
+      });
+      onChange(newSelected);
+    }
+  };
 
-            // Drag and Drop events for styling
-            dropzone.on('dragover', function(e) {
-                e.preventDefault();
-                dropzone.addClass('dropzone-active');
-            });
-            dropzone.on('dragleave', function(e) {
-                e.preventDefault();
-                dropzone.removeClass('dropzone-active');
-            });
-            dropzone.on('drop', function(e) {
-                e.preventDefault();
-                dropzone.removeClass('dropzone-active');
-                if (e.originalEvent.dataTransfer.files.length) {
-                    fileInput[0].files = e.originalEvent.dataTransfer.files;
-                    handleFileSelect();
-                }
-            });
+  const toggleMonth = (month) => {
+    if (selected.includes(month)) {
+      onChange(selected.filter(item => item !== month));
+    } else {
+      onChange([...selected, month]);
+    }
+  };
 
-            // File input change
-            fileInput.on('change', handleFileSelect);
+  const toggleExpand = (year, e) => {
+    e.stopPropagation();
+    setExpandedYears(prev => ({ ...prev, [year]: !prev[year] }));
+  };
 
-            // Reset Button
-            resetBtn.on('click', function() {
-                uploadSection.show();
-                resetBtn.addClass('hidden');
-                fileInput.val('');
-                // Scroll to top
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            });
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <label className="block text-xs font-bold text-indigo-900 uppercase tracking-wider mb-2">
+        {label}
+      </label>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between bg-white border border-indigo-200 hover:border-indigo-400 rounded-xl px-4 py-3 text-sm text-left focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
+      >
+        <span className="truncate pr-2 font-medium text-slate-700">
+          {isAllSelected ? 'ລວມທັງໝົດ' : `ເລືອກແລ້ວ (${selected.length})`}
+        </span>
+        <ChevronDown size={18} className={`text-indigo-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
 
-            function handleFileSelect() {
-                const file = fileInput[0].files[0];
-                if (!file) return;
+      {isOpen && (
+        <div className="absolute z-50 mt-2 w-full sm:w-72 bg-white border border-indigo-100 rounded-xl shadow-xl max-h-72 overflow-y-auto animate-in fade-in zoom-in duration-150">
+          <div 
+            className="flex items-center gap-3 px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-indigo-100 sticky top-0 bg-white/95 backdrop-blur-sm transition-colors z-10"
+            onClick={() => onChange([])}
+          >
+            {isAllSelected ? <CheckSquare size={18} className="text-indigo-600" /> : <Square size={18} className="text-slate-300" />}
+            <span className="text-sm font-bold text-indigo-900">ເລືອກທັງໝົດ (Clear Filter)</span>
+          </div>
+          
+          {options.map(group => {
+            const isExpanded = expandedYears[group.year];
+            const allInGroup = group.months.length > 0 && group.months.every(m => selected.includes(m));
+            const someInGroup = !allInGroup && group.months.some(m => selected.includes(m));
 
-                // Show loading
-                loading.css('display', 'flex');
+            return (
+              <div key={group.year} className="border-b border-slate-50 last:border-0">
+                <div 
+                  className="flex items-center justify-between px-4 py-2 hover:bg-slate-50 cursor-pointer"
+                  onClick={(e) => toggleYear(group, e)}
+                >
+                  <div className="flex items-center gap-3 flex-1">
+                    {allInGroup ? <CheckSquare size={18} className="text-indigo-600 flex-shrink-0" /> : 
+                     someInGroup ? <MinusSquare size={18} className="text-indigo-400 flex-shrink-0" /> : 
+                     <Square size={18} className="text-slate-300 flex-shrink-0" />}
+                    <span className={`text-sm font-semibold ${allInGroup || someInGroup ? 'text-indigo-900' : 'text-slate-700'}`}>
+                      {group.year === 'ບໍ່ລະບຸ' ? 'ບໍ່ລະບຸວັນທີ' : `ປີ ${group.year}`}
+                    </span>
+                  </div>
+                  {group.year !== 'ບໍ່ລະບຸ' && (
+                    <div 
+                      className="p-1.5 hover:bg-slate-200 rounded-md transition-colors"
+                      onClick={(e) => toggleExpand(group.year, e)}
+                    >
+                      <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : '-rotate-90'}`} />
+                    </div>
+                  )}
+                </div>
 
-                Papa.parse(file, {
-                    header: true,
-                    dynamicTyping: true, // Converts numbers automatically for Sum/Average
-                    skipEmptyLines: true,
-                    complete: function(results) {
-                        loading.hide();
-                        uploadSection.hide();
-                        resetBtn.removeClass('hidden');
-                        dashboardSection.removeClass('hidden').addClass('flex');
-                        
-                        fullCSVData = results.data;
-                        
-                        // Intelligent Defaults based on user's header names
-                        const headers = results.meta.fields || [];
-                        let defaultRows = [];
-                        let defaultCols = [];
-                        let defaultVal = "";
+                {isExpanded && group.year !== 'ບໍ່ລະບຸ' && (
+                  <div className="bg-slate-50/50 pb-1">
+                    {group.months.map(month => {
+                      const monthNum = month.split('/')[0];
+                      return (
+                        <div 
+                          key={month}
+                          className="flex items-center gap-3 px-4 py-2 pl-12 hover:bg-indigo-50/50 cursor-pointer transition-colors"
+                          onClick={(e) => { e.stopPropagation(); toggleMonth(month); }}
+                        >
+                          {selected.includes(month) ? <CheckSquare size={16} className="text-indigo-600" /> : <Square size={16} className="text-slate-300" />}
+                          <span className={`text-sm ${selected.includes(month) ? 'text-indigo-900 font-medium' : 'text-slate-600'}`}>
+                            ເດືອນ {monthNum}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
-                        if (headers.includes("Event Province")) defaultRows.push("Event Province");
-                        if (headers.includes("Event Domain")) defaultCols.push("Event Domain");
-                        else if (headers.includes("Event type")) defaultCols.push("Event type");
+// --- Main Application ---
+export default function App() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [fileName, setFileName] = useState('');
+  const fileInputRef = useRef(null);
 
-                        if (headers.includes("Total number of participants")) {
-                            defaultVal = "Total number of participants";
-                        }
+  // Load SheetJS Library
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js";
+    script.async = true;
+    document.body.appendChild(script);
+  }, []);
 
-                        renderPivot(fullCSVData, {
-                            rows: defaultRows,
-                            cols: defaultCols,
-                            vals: defaultVal ? [defaultVal] : [],
-                            aggregatorName: "Sum"
-                        });
-                    },
-                    error: function(error) {
-                        loading.hide();
-                        alert("Error parsing CSV file: " + error.message);
-                    }
-                });
-            }
+  const [filters, setFilters] = useState({
+    domain: [],
+    type: [],
+    level: [],
+    date: [],
+    participantType: [] 
+  });
 
-            function renderPivot(data, configOverrides = {}) {
-                // Merge existing state with any new overrides
-                let finalConfig = $.extend(true, {}, pivotConfigState, configOverrides);
-                
-                pivotOutput.pivotUI(data, {
-                    ...finalConfig,
-                    aggregators: $.extend({}, $.pivotUtilities.aggregators),
-                    rendererName: "Table",
-                    onRefresh: function(config) {
-                        // Capture state to preserve dragging/dropdowns when filtering data
-                        pivotConfigState = {
-                            rows: config.rows,
-                            cols: config.cols,
-                            vals: config.vals,
-                            aggregatorName: config.aggregatorName,
-                            inclusions: config.inclusions,
-                            exclusions: config.exclusions
-                        };
-                        
-                        // Wrap the generated table in a scrollable box
-                        $('.pvtTable').wrap('<div class="table-scroll-box"></div>');
-                        
-                        // Re-apply field filter if active
-                        triggerFieldSearch();
-                    }
-                }, true); // The 'true' parameter forces PivotTable to overwrite the existing element
-            }
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    setFileName(file.name);
+    setLoading(true);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const parsed = parseCSV(e.target.result);
+      setData(parsed.data);
+      setFilters({ domain: [], type: [], level: [], date: [], participantType: [] });
+      setLoading(false);
+    };
+    reader.readAsText(file);
+  };
 
-            // --- Filtering Logic ---
+  const filterOptions = useMemo(() => {
+    const opts = { domain: new Set(), type: new Set(), level: new Set(), participantType: new Set() };
+    const rawDates = new Set();
+    data.forEach(row => {
+      if (row['Event Domain (Virtual)']) opts.domain.add(row['Event Domain (Virtual)']);
+      if (row['Event type (Virtual)']) opts.type.add(row['Event type (Virtual)']);
+      if (row['Event level (Virtual)']) opts.level.add(row['Event level (Virtual)']);
+      if (row['Participant type']) opts.participantType.add(row['Participant type']);
+      if (row['Event Start date (Virtual)']) rawDates.add(getMonthYear(row['Event Start date (Virtual)']));
+    });
 
-            // 1. Data Filter
-            $('#data-search').on('input', function() {
-                clearTimeout(searchDebounceTimer);
-                const term = $(this).val().toLowerCase();
-                
-                searchDebounceTimer = setTimeout(() => {
-                    if (!term) {
-                        renderPivot(fullCSVData);
-                        return;
-                    }
-                    
-                    // Filter rows where any value matches the search term
-                    const filteredData = fullCSVData.filter(row => {
-                        return Object.values(row).some(val => 
-                            val !== null && val !== undefined && val.toString().toLowerCase().includes(term)
-                        );
-                    });
-                    
-                    renderPivot(filteredData);
-                }, 300); // 300ms debounce
-            });
+    const dateGroups = {};
+    Array.from(rawDates).forEach(dateStr => {
+      if (dateStr === 'ບໍ່ລະບຸ') {
+        if (!dateGroups['ບໍ່ລະບຸ']) dateGroups['ບໍ່ລະບຸ'] = [];
+        dateGroups['ບໍ່ລະບຸ'].push(dateStr);
+        return;
+      }
+      const [m, y] = dateStr.split('/');
+      if (!dateGroups[y]) dateGroups[y] = [];
+      dateGroups[y].push(dateStr);
+    });
 
-            // 2. Field Filter
-            function triggerFieldSearch() {
-                const term = $('#field-search').val().toLowerCase();
-                if (!term) {
-                    $('.pvtUnused li').show();
-                    return;
-                }
-                
-                $('.pvtUnused li').each(function() {
-                    const text = $(this).find('.pvtAttr').text().toLowerCase();
-                    $(this).toggle(text.includes(term));
-                });
-            }
+    const sortedYears = Object.keys(dateGroups).sort((a, b) => {
+      if (a === 'ບໍ່ລະບຸ') return 1;
+      if (b === 'ບໍ່ລະບຸ') return -1;
+      return b.localeCompare(a); 
+    });
 
-            $('#field-search').on('input', triggerFieldSearch);
+    return {
+      domain: Array.from(opts.domain).sort(),
+      type: Array.from(opts.type).sort(),
+      level: Array.from(opts.level).sort(),
+      participantType: Array.from(opts.participantType).sort(),
+      date: sortedYears.map(year => ({
+        year,
+        months: dateGroups[year].sort((a, b) => a.localeCompare(b))
+      }))
+    };
+  }, [data]);
 
+  const filteredData = useMemo(() => {
+    return data.filter(row => {
+      const dDomain = row['Event Domain (Virtual)'];
+      const dType = row['Event type (Virtual)'];
+      const dLevel = row['Event level (Virtual)'];
+      const dParticipantType = row['Participant type']; 
+      const dDate = getMonthYear(row['Event Start date (Virtual)']);
+
+      const passDomain = filters.domain.length === 0 || filters.domain.includes(dDomain);
+      const passType = filters.type.length === 0 || filters.type.includes(dType);
+      const passLevel = filters.level.length === 0 || filters.level.includes(dLevel);
+      const passParticipantType = filters.participantType.length === 0 || filters.participantType.includes(dParticipantType); 
+      const passDate = filters.date.length === 0 || filters.date.includes(dDate);
+
+      return passDomain && passType && passLevel && passDate && passParticipantType;
+    });
+  }, [data, filters]);
+
+  const pivotData = useMemo(() => {
+    const grouped = {};
+    let grandTotalEvents = new Set();
+    let grandTotalFemale = 0; 
+    let grandTotalMale = 0;   
+
+    filteredData.forEach(row => {
+      const host = row['Event Host (Virtual)'] || '(ບໍ່ລະບຸ Host)';
+      const eventName = row['Event name (Virtual)'] || '(ບໍ່ລະບຸ Event)';
+      const eventId = row['Event ID'];
+      const partId = row['Participant ID'];
+      const gender = row['Participant Gender (Virtual)'];
+      const startDate = row['Event Start date (Virtual)']; 
+
+      if (!grouped[host]) grouped[host] = {};
+      if (!grouped[host][eventName]) {
+        grouped[host][eventName] = {
+          events: new Set(),
+          femaleCount: 0,
+          maleCount: 0,
+          startDates: new Set() 
+        };
+      }
+
+      if (startDate) grouped[host][eventName].startDates.add(startDate);
+      if (eventId) {
+        grouped[host][eventName].events.add(eventId);
+        grandTotalEvents.add(eventId);
+      }
+      
+      if (partId) {
+        const isFemale = gender?.toLowerCase() === 'female' || gender === 'ຍິງ';
+        const isMale = gender?.toLowerCase() === 'male' || gender === 'ຊາຍ';
+        if (isFemale) { grouped[host][eventName].femaleCount++; grandTotalFemale++; }
+        else if (isMale) { grouped[host][eventName].maleCount++; grandTotalMale++; }
+      }
+    });
+
+    const rows = [];
+    Object.keys(grouped).sort().forEach(host => {
+      const events = Object.keys(grouped[host]).sort();
+      events.forEach((eventName, index) => {
+        const stats = grouped[host][eventName];
+        rows.push({
+          host,
+          isFirstInHost: index === 0, 
+          hostRowspan: events.length,
+          eventName,
+          startDate: Array.from(stats.startDates).join(', '), 
+          eventCount: stats.events.size,
+          femaleCount: stats.femaleCount,
+          maleCount: stats.maleCount,
+          totalParts: stats.femaleCount + stats.maleCount
         });
-    </script>
-</body>
-</html>
+      });
+    });
+
+    return {
+      rows,
+      grandTotals: {
+        events: grandTotalEvents.size,
+        female: grandTotalFemale,
+        male: grandTotalMale,
+        totalParts: grandTotalFemale + grandTotalMale
+      }
+    };
+  }, [filteredData]);
+
+  // --- Real Excel Export (.xlsx) using SheetJS ---
+  const exportToExcel = () => {
+    if (!pivotData || pivotData.rows.length === 0 || !window.XLSX) {
+      alert("ບໍ່ມີຂໍ້ມູນໃຫ້ Export ຫຼື ລະບົບຍັງບໍ່ພ້ອມ");
+      return;
+    }
+
+    const headers = [['Event Host', 'Event Name', 'ເວລາຈັດຕັ້ງປະຕິບັດ', 'ຈຳນວນ Event', 'ຍິງ', 'ຊາຍ', 'ລວມຜູ້ເຂົ້າຮ່ວມ']];
+    const dataRows = pivotData.rows.map(row => [
+      row.host, row.eventName, row.startDate, row.eventCount, row.femaleCount, row.maleCount, row.totalParts
+    ]);
+    const footer = [['ລວມທັງໝົດ (Grand Total)', '', '', pivotData.grandTotals.events, pivotData.grandTotals.female, pivotData.grandTotals.male, pivotData.grandTotals.totalParts]];
+    
+    const combinedData = [...headers, ...dataRows, ...footer];
+    const worksheet = window.XLSX.utils.aoa_to_sheet(combinedData);
+    const workbook = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(workbook, worksheet, "Analysis_Report");
+    
+    window.XLSX.writeFile(workbook, `AppSheet_Analysis_${new Date().toISOString().slice(0,10)}.xlsx`);
+  };
+
+  return (
+    <>
+      <style dangerouslySetInnerHTML={{__html: `
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@300;400;500;600;700&display=swap');
+        * {
+          font-family: 'Noto Sans Lao', sans-serif !important;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      `}} />
+      
+      <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-8">
+        <div className="max-w-7xl mx-auto space-y-6">
+          
+          {/* Header Section */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-indigo-700 text-white rounded-xl shadow-lg shadow-indigo-100">
+                <LayoutGrid size={28} />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">AppSheet Data Analytics</h1>
+                <p className="text-sm text-slate-500 font-medium">ວິເຄາະຂໍ້ມູນ ແລະ ສົ່ງອອກເປັນໄຟລ໌ Excel</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+              <button 
+                onClick={() => fileInputRef.current.click()}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-6 py-3 rounded-xl font-bold transition-all border border-indigo-200 shadow-sm active:scale-95"
+              >
+                <UploadCloud size={20} />
+                {loading ? 'ກຳລັງປະມວນຜົນ...' : 'ອັບໂຫຼດ CSV'}
+              </button>
+            </div>
+          </div>
+
+          {data.length > 0 ? (
+            <div className="space-y-8 animate-in fade-in duration-700 slide-in-from-bottom-4">
+              
+              {/* Filter Panel */}
+              <div className="bg-white rounded-2xl shadow-xl border border-indigo-100 overflow-hidden relative">
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-800 via-indigo-600 to-blue-500"></div>
+                
+                <div className="px-6 py-5 border-b border-indigo-100 flex flex-col md:flex-row md:items-center justify-between bg-indigo-50/30 gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-indigo-700 text-white rounded-lg shadow-sm">
+                      <Filter size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-indigo-950">ກັ່ນຕອງຂໍ້ມູນແບບ Multi-Select</h3>
+                      <p className="text-sm text-indigo-600 font-medium">ກອງຕາມ Domain, Type, Level ແລະ ວັນທີ</p>
+                    </div>
+                  </div>
+                  
+                  {(filters.domain.length > 0 || filters.type.length > 0 || filters.level.length > 0 || filters.date.length > 0 || filters.participantType.length > 0) && (
+                    <button 
+                      onClick={() => setFilters({ domain: [], type: [], level: [], date: [], participantType: [] })}
+                      className="text-sm text-red-600 hover:text-red-700 font-bold px-4 py-2 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                    >
+                      ລ້າງການກອງທັງໝົດ
+                    </button>
+                  )}
+                </div>
+                
+                <div className="p-6 bg-white grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                  <MultiSelect label="Event Domain" options={filterOptions.domain} selected={filters.domain} onChange={(val) => setFilters({...filters, domain: val})} />
+                  <MultiSelect label="Event Type" options={filterOptions.type} selected={filters.type} onChange={(val) => setFilters({...filters, type: val})} />
+                  <MultiSelect label="Event Level" options={filterOptions.level} selected={filters.level} onChange={(val) => setFilters({...filters, level: val})} />
+                  <DateGroupMultiSelect label="Start Date (ປີ/ເດືອນ)" options={filterOptions.date} selected={filters.date} onChange={(val) => setFilters({...filters, date: val})} />
+                  <MultiSelect label="Participant Type" options={filterOptions.participantType} selected={filters.participantType} onChange={(val) => setFilters({...filters, participantType: val})} />
+                </div>
+              </div>
+
+              {/* Summary Pivot Table */}
+              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+                <div className="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:justify-between sm:items-center bg-white gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-slate-100 text-slate-600 rounded-lg">
+                      <Table size={22} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-lg">ບົດສະຫຼຸບຜົນການວິເຄາະ</h3>
+                      <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Found {filteredData.length} Records</p>
+                    </div>
+                  </div>
+                  
+                  {pivotData.rows.length > 0 && (
+                    <button 
+                      onClick={exportToExcel}
+                      className="flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-100 active:scale-95 border-b-4 border-emerald-800"
+                    >
+                      <FileSpreadsheet size={20} /> 
+                      Export to .xlsx
+                    </button>
+                  )}
+                </div>
+                
+                <div className="overflow-x-auto max-h-[700px] overflow-y-auto custom-scrollbar">
+                  <table className="w-full text-sm text-left relative border-separate border-spacing-0">
+                    <thead className="sticky top-0 z-20 shadow-md">
+                      {/* --- Requested Deep Blue Header --- */}
+                      <tr className="bg-[#1e3a8a] text-white">
+                        <th className="px-6 py-4 whitespace-nowrap border-b border-indigo-800 sticky left-0 bg-[#1e3a8a] z-30 font-bold uppercase tracking-wider text-xs">
+                          Event Host
+                        </th>
+                        <th className="px-6 py-4 whitespace-nowrap border-b border-indigo-800 font-bold uppercase tracking-wider text-xs">
+                          Event Name
+                        </th>
+                        <th className="px-6 py-4 whitespace-nowrap border-b border-indigo-800 font-bold uppercase tracking-wider text-xs">
+                          ວັນທີຈັດຕັ້ງປະຕິບັດ
+                        </th>
+                        <th className="px-6 py-4 text-center whitespace-nowrap border-b border-indigo-800 bg-blue-800/50 font-bold uppercase tracking-wider text-xs">
+                          ຈຳນວນ Event
+                        </th>
+                        <th className="px-6 py-4 text-center whitespace-nowrap border-b border-indigo-800 bg-pink-800/50 font-bold uppercase tracking-wider text-xs">
+                          ຍິງ
+                        </th>
+                        <th className="px-6 py-4 text-center whitespace-nowrap border-b border-indigo-800 bg-sky-800/50 font-bold uppercase tracking-wider text-xs">
+                          ຊາຍ
+                        </th>
+                        <th className="px-6 py-4 text-center whitespace-nowrap border-b border-indigo-800 bg-indigo-900/60 font-bold uppercase tracking-wider text-xs">
+                          ລວມຜູ້ເຂົ້າຮ່ວມ
+                        </th>
+                      </tr>
+                    </thead>
+                    
+                    <tbody className="divide-y divide-slate-100">
+                      {pivotData.rows.length === 0 ? (
+                        <tr>
+                          <td colSpan="7" className="px-6 py-20 text-center">
+                            <div className="flex flex-col items-center justify-center gap-4">
+                              <div className="p-4 bg-slate-50 rounded-full text-slate-300">
+                                <Filter size={48} />
+                              </div>
+                              <p className="text-slate-400 font-bold">ບໍ່ພົບຂໍ້ມູນຕາມເງື່ອນໄຂການກອງ</p>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        pivotData.rows.map((row, idx) => (
+                          <tr key={idx} className="group hover:bg-slate-50 transition-colors">
+                            {row.isFirstInHost && (
+                              <td 
+                                rowSpan={row.hostRowspan} 
+                                className="px-6 py-4 font-bold text-slate-900 border-r border-slate-200 bg-white sticky left-0 z-10 align-top shadow-[2px_0_10px_-4px_rgba(0,0,0,0.1)] group-hover:bg-slate-50"
+                              >
+                                {row.host}
+                              </td>
+                            )}
+                            <td className="px-6 py-4 text-slate-700 font-medium min-w-[250px]">
+                              {row.eventName}
+                            </td>
+                            <td className="px-6 py-4 text-slate-500 font-medium">
+                              {row.startDate || '-'}
+                            </td>
+                            <td className="px-6 py-4 text-center font-bold text-blue-700 bg-blue-50/20">
+                              {row.eventCount.toLocaleString()}
+                            </td>
+                            <td className="px-6 py-4 text-center font-bold text-pink-600 bg-pink-50/20">
+                              {row.femaleCount.toLocaleString()}
+                            </td>
+                            <td className="px-6 py-4 text-center font-bold text-sky-600 bg-sky-50/20">
+                              {row.maleCount.toLocaleString()}
+                            </td>
+                            <td className="px-6 py-4 text-center font-bold text-indigo-700 bg-indigo-50/40">
+                              {row.totalParts.toLocaleString()}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+
+                      {/* --- Grand Total Row --- */}
+                      {pivotData.rows.length > 0 && (
+                        <tr className="bg-slate-900 text-white font-bold sticky bottom-0 z-20">
+                          <td colSpan="3" className="px-6 py-5 text-right border-r border-slate-700 sticky left-0 bg-slate-900 z-30 uppercase tracking-widest text-xs">
+                            ລວມທັງໝົດ (Grand Total)
+                          </td>
+                          <td className="px-6 py-5 text-center border-slate-700 bg-blue-900">
+                            {pivotData.grandTotals.events.toLocaleString()}
+                          </td>
+                          <td className="px-6 py-5 text-center border-slate-700 bg-pink-900">
+                            {pivotData.grandTotals.female.toLocaleString()}
+                          </td>
+                          <td className="px-6 py-5 text-center border-slate-700 bg-sky-900">
+                            {pivotData.grandTotals.male.toLocaleString()}
+                          </td>
+                          <td className="px-6 py-5 text-center bg-indigo-900 border-l border-indigo-700 shadow-[inset_0_2px_10px_rgba(0,0,0,0.3)]">
+                            {pivotData.grandTotals.totalParts.toLocaleString()}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Welcome Screen */
+            <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-16 flex flex-col items-center justify-center text-center shadow-sm animate-in fade-in duration-1000">
+              <div className="bg-indigo-50 p-6 rounded-full mb-6">
+                <FileSpreadsheet size={64} className="text-indigo-600 animate-pulse" />
+              </div>
+              <h2 className="text-2xl font-black text-slate-800 mb-4 tracking-tight">ກຽມພ້ອມວິເຄາະຂໍ້ມູນ AppSheet</h2>
+              <p className="text-slate-500 max-w-lg mb-8 font-medium leading-relaxed">
+                ກະລຸນາອັບໂຫຼດໄຟລ໌ CSV ທີ່ Export ມາຈາກ AppSheet. ລະບົບຈະສ້າງຕາຕະລາງສະຫຼຸບຜົນໃຫ້ທັນທີ ແລະ ສາມາດສົ່ງອອກເປັນໄຟລ໌ Excel ທີ່ມີຮູບແບບສວຍງາມ.
+              </p>
+              <button 
+                onClick={() => fileInputRef.current.click()}
+                className="bg-indigo-700 hover:bg-indigo-800 text-white px-10 py-4 rounded-2xl font-black transition-all shadow-xl shadow-indigo-200 flex items-center gap-3 active:scale-95 border-b-4 border-indigo-950"
+              >
+                <UploadCloud size={24} />
+                ເລືອກໄຟລ໌ CSV ດຽວນີ້
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
