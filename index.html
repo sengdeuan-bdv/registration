@@ -34,7 +34,7 @@
             border: 1px solid #e0e7ff;
             border-radius: 0.75rem;
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-            max-height: 400px;
+            max-height: 350px;
             overflow-y: auto;
         }
         .dropdown-content.show { display: block; }
@@ -117,12 +117,13 @@
                     </div>
                 </div>
                 
-                <div id="filterBody" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 bg-white">
+                <div id="filterBody" class="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 bg-white">
                     <div id="filter_domain" class="filter-group"></div>
                     <div id="filter_type" class="filter-group"></div>
                     <div id="filter_level" class="filter-group"></div>
                     <div id="filter_date" class="filter-group"></div>
                     <div id="filter_participantType" class="filter-group"></div>
+                    <div id="filter_orgLevel" class="filter-group"></div>
                 </div>
             </section>
 
@@ -184,12 +185,12 @@
 
     <script>
         let rawData = [];
-        let filters = { domain: [], type: [], level: [], date: [], participantType: [] };
+        let filters = { domain: [], type: [], level: [], date: [], participantType: [], orgLevel: [] };
         let filterOptions = {};
         let isFilterPanelOpen = true;
         let activeDropdownId = null;
         let countType = 'normal';
-        let lastAnalysisResult = { rows: [], grandTotals: {}, orgLevels: [] };
+        let lastAnalysisResult = { rows: [], grandTotals: {}, orgTypes: [] };
 
         window.onload = () => {
             lucide.createIcons();
@@ -220,8 +221,7 @@
             } else {
                 body.classList.add('hidden-panel');
                 chevron.classList.add('rotate-180');
-                activeDropdownId = null;
-                document.querySelectorAll('.dropdown-content').forEach(c => c.classList.remove('show'));
+                closeAllDropdowns();
             }
         }
 
@@ -280,15 +280,18 @@
         }
 
         function resetFilters() {
-            filters = { domain: [], type: [], level: [], date: [], participantType: [] };
-            const domainSet = new Set(), typeSet = new Set(), levelSet = new Set(), partTypeSet = new Set(), dateSet = new Set();
+            filters = { domain: [], type: [], level: [], date: [], participantType: [], orgLevel: [] };
+            const domainSet = new Set(), typeSet = new Set(), levelSet = new Set(), partTypeSet = new Set(), dateSet = new Set(), orgLevelSet = new Set();
+            
             rawData.forEach(row => {
                 if (row['Event Domain (Virtual)']) domainSet.add(row['Event Domain (Virtual)']);
                 if (row['Event type (Virtual)']) typeSet.add(row['Event type (Virtual)']);
                 if (row['Event level (Virtual)']) levelSet.add(row['Event level (Virtual)']);
                 if (row['Participant type']) partTypeSet.add(row['Participant type']);
+                if (row['Participant Organization Level (Virtual)']) orgLevelSet.add(row['Participant Organization Level (Virtual)']);
                 if (row['Event Start date (Virtual)']) dateSet.add(getMonthYear(row['Event Start date (Virtual)']));
             });
+            
             const dateGroups = {};
             Array.from(dateSet).forEach(d => {
                 const parts = d.split('/');
@@ -296,11 +299,13 @@
                 if (!dateGroups[y]) dateGroups[y] = [];
                 dateGroups[y].push(d);
             });
+            
             filterOptions = {
                 domain: Array.from(domainSet).sort(),
                 type: Array.from(typeSet).sort(),
                 level: Array.from(levelSet).sort(),
                 participantType: Array.from(partTypeSet).sort(),
+                orgLevel: Array.from(orgLevelSet).sort(),
                 date: Object.keys(dateGroups).sort((a, b) => b.localeCompare(a)).map(y => ({ year: y, months: dateGroups[y].sort() }))
             };
         }
@@ -316,8 +321,10 @@
                 { id: 'type', label: 'Event Type', options: filterOptions.type, container: 'filter_type' },
                 { id: 'level', label: 'Event Level', options: filterOptions.level, container: 'filter_level' },
                 { id: 'date', label: 'Date (ປີ/ເດືອນ)', options: filterOptions.date, container: 'filter_date', isDate: true },
-                { id: 'participantType', label: 'Part. Type', options: filterOptions.participantType, container: 'filter_participantType' }
+                { id: 'participantType', label: 'Part. Type', options: filterOptions.participantType, container: 'filter_participantType' },
+                { id: 'orgLevel', label: 'Org. Level', options: filterOptions.orgLevel, container: 'filter_orgLevel' }
             ];
+            
             configs.forEach(conf => {
                 const container = document.getElementById(conf.container);
                 const sel = filters[conf.id].length;
@@ -393,9 +400,8 @@
                     const id = t.id.split('_')[1];
                     const content = document.getElementById(`content_${id}`);
                     const was = content.classList.contains('show');
-                    document.querySelectorAll('.dropdown-content').forEach(c => c.classList.remove('show'));
+                    closeAllDropdowns();
                     if (!was) { content.classList.add('show'); activeDropdownId = id; }
-                    else { activeDropdownId = null; }
                 };
             });
             window.onclick = (e) => {
@@ -423,7 +429,12 @@
         }
 
         function handleFilterClear(id) { filters[id] = []; updateUI(); }
-        function clearAllFilters() { filters = { domain: [], type: [], level: [], date: [], participantType: [] }; activeDropdownId = null; updateUI(); }
+        
+        function clearAllFilters() { 
+            filters = { domain: [], type: [], level: [], date: [], participantType: [], orgLevel: [] }; 
+            activeDropdownId = null; 
+            updateUI(); 
+        }
 
         function renderTable() {
             const filtered = rawData.filter(row => {
@@ -432,14 +443,15 @@
                        (filters.type.length === 0 || filters.type.includes(row['Event type (Virtual)'])) &&
                        (filters.level.length === 0 || filters.level.includes(row['Event level (Virtual)'])) &&
                        (filters.participantType.length === 0 || filters.participantType.includes(row['Participant type'])) &&
+                       (filters.orgLevel.length === 0 || filters.orgLevel.includes(row['Participant Organization Level (Virtual)'])) &&
                        (filters.date.length === 0 || filters.date.includes(dDate));
             });
 
             document.getElementById('recordCountLabel').innerText = `ພົບ ${filtered.length} ລາຍການ`;
 
-            const orgLevelsSet = new Set();
-            filtered.forEach(row => { if (row['Participant Organization Level (Virtual)']) orgLevelsSet.add(row['Participant Organization Level (Virtual)']); });
-            const orgLevels = Array.from(orgLevelsSet).sort();
+            const orgTypesSet = new Set();
+            filtered.forEach(row => { if (row['Participant Organization type (Virtual)']) orgTypesSet.add(row['Participant Organization type (Virtual)']); });
+            const orgTypes = Array.from(orgTypesSet).sort();
 
             const grouped = {};
             filtered.forEach(row => {
@@ -447,7 +459,7 @@
                 const name = row['Event name (Virtual)'] || '(ບໍ່ລະບຸ Event)';
                 const gender = row['Participant Gender (Virtual)'];
                 const partId = row['Participant ID'] || 'no-id';
-                const level = row['Participant Organization Level (Virtual)'] || '(ບໍ່ລະບຸ)';
+                const orgType = row['Participant Organization type (Virtual)'] || '(ບໍ່ລະບຸ)';
                 
                 if (!grouped[host]) grouped[host] = {};
                 if (!grouped[host][name]) grouped[host][name] = { 
@@ -460,9 +472,9 @@
                 if (row['Event ID']) g.events.add(row['Event ID']);
                 if (row['Event Start date (Virtual)']) g.dates.add(row['Event Start date (Virtual)']);
                 
-                if (!g.orgCounts[level]) g.orgCounts[level] = { normal: 0, distinct: new Set() };
-                g.orgCounts[level].normal++;
-                g.orgCounts[level].distinct.add(partId);
+                if (!g.orgCounts[orgType]) g.orgCounts[orgType] = { normal: 0, distinct: new Set() };
+                g.orgCounts[orgType].normal++;
+                g.orgCounts[orgType].distinct.add(partId);
 
                 if (gender?.toLowerCase() === 'female' || gender === 'ຍິງ') { g.femaleNormal++; g.femaleDistinct.add(partId); }
                 else if (gender?.toLowerCase() === 'male' || gender === 'ຊາຍ') { g.maleNormal++; g.maleDistinct.add(partId); }
@@ -479,20 +491,20 @@
                     <th class="text-center font-bold uppercase text-[10px] bg-pink-800/50 w-12 border-b border-indigo-900 text-pink-100">ຍິງ</th>
                     <th class="text-center font-bold uppercase text-[10px] bg-sky-800/50 w-12 border-b border-indigo-900 text-sky-100">ຊາຍ</th>
                     <th class="text-center font-bold uppercase text-[10px] bg-indigo-900/60 w-16 border-b border-indigo-900">ລວມ</th>
-                    ${orgLevels.map(l => `<th class="text-center font-bold uppercase text-[10px] bg-slate-800/50 border-b border-indigo-900">${l}</th>`).join('')}
+                    ${orgTypes.map(t => `<th class="text-center font-bold uppercase text-[10px] bg-slate-800/50 border-b border-indigo-900">${t}</th>`).join('')}
                 </tr>`;
 
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
             let gtEvents = new Set(), gtFNormal = 0, gtMNormal = 0, gtFDist = new Set(), gtMDist = new Set();
-            const gtOrgLevels = {};
-            orgLevels.forEach(l => gtOrgLevels[l] = { normal: 0, distinct: new Set() });
+            const gtOrgTypes = {};
+            orgTypes.forEach(t => gtOrgTypes[t] = { normal: 0, distinct: new Set() });
 
             const hosts = Object.keys(grouped).sort();
             const rowsForExport = [];
 
             if (!hosts.length) {
-                tbody.innerHTML = `<tr><td colspan="${8 + orgLevels.length}" class="px-6 py-10 text-center text-slate-400 font-bold text-sm">ບໍ່ພົບຂໍ້ມູນ</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="${8 + orgTypes.length}" class="px-6 py-10 text-center text-slate-400 font-bold text-sm">ບໍ່ພົບຂໍ້ມູນ</td></tr>`;
                 return;
             }
 
@@ -507,12 +519,12 @@
                     g.femaleDistinct.forEach(id => gtFDist.add(id)); g.maleDistinct.forEach(id => gtMDist.add(id));
                     g.events.forEach(id => gtEvents.add(id));
 
-                    const levelCounts = orgLevels.map(l => {
-                        const val = g.orgCounts[l];
+                    const typeCounts = orgTypes.map(t => {
+                        const val = g.orgCounts[t];
                         const count = val ? (countType === 'distinct' ? val.distinct.size : val.normal) : 0;
                         if (val) {
-                            gtOrgLevels[l].normal += val.normal;
-                            val.distinct.forEach(id => gtOrgLevels[l].distinct.add(id));
+                            gtOrgTypes[t].normal += val.normal;
+                            val.distinct.forEach(id => gtOrgTypes[t].distinct.add(id));
                         }
                         return count;
                     });
@@ -530,16 +542,16 @@
                         <td class="text-center font-bold text-pink-600 bg-pink-50/20">${cF.toLocaleString()}</td>
                         <td class="text-center font-bold text-sky-600 bg-sky-50/30">${cM.toLocaleString()}</td>
                         <td class="text-center font-bold text-indigo-700 bg-indigo-50/40">${(cF + cM).toLocaleString()}</td>
-                        ${levelCounts.map(c => `<td class="text-center text-slate-600 bg-slate-50/30">${c > 0 ? c.toLocaleString() : '-'}</td>`).join('')}`;
+                        ${typeCounts.map(c => `<td class="text-center text-slate-600 bg-slate-50/30">${c > 0 ? c.toLocaleString() : '-'}</td>`).join('')}`;
                     tbody.appendChild(tr);
 
-                    rowsForExport.push({ host, isFirst: i === 0, hostCount: events.length, name, ids: Array.from(g.events).join(', '), date: Array.from(g.dates).join(', '), evC: g.events.size, f: cF, m: cM, tot: cF+cM, levelCounts });
+                    rowsForExport.push({ host, isFirst: i === 0, hostCount: events.length, name, ids: Array.from(g.events).join(', '), date: Array.from(g.dates).join(', '), evC: g.events.size, f: cF, m: cM, tot: cF+cM, typeCounts });
                 });
             });
 
             const fF = countType === 'distinct' ? gtFDist.size : gtFNormal;
             const fM = countType === 'distinct' ? gtMDist.size : gtMNormal;
-            const fL = orgLevels.map(l => countType === 'distinct' ? gtOrgLevels[l].distinct.size : gtOrgLevels[l].normal);
+            const fT = orgTypes.map(t => countType === 'distinct' ? gtOrgTypes[t].distinct.size : gtOrgTypes[t].normal);
 
             const ftr = document.createElement('tr');
             ftr.className = 'bg-slate-900 text-white font-bold sticky bottom-0 z-20';
@@ -549,22 +561,22 @@
                 <td class="text-center bg-pink-900 text-[11px]">${fF.toLocaleString()}</td>
                 <td class="text-center bg-sky-900 text-[11px]">${fM.toLocaleString()}</td>
                 <td class="text-center bg-indigo-900 border-l border-indigo-700 text-[11px]">${(fF + fM).toLocaleString()}</td>
-                ${fL.map(v => `<td class="text-center bg-slate-800 text-[11px]">${v.toLocaleString()}</td>`).join('')}`;
+                ${fT.map(v => `<td class="text-center bg-slate-800 text-[11px]">${v.toLocaleString()}</td>`).join('')}`;
             tbody.appendChild(ftr);
 
-            lastAnalysisResult = { rows: rowsForExport, grandTotals: { ev: gtEvents.size, f: fF, m: fM, t: fF + fM, levels: fL }, orgLevels, type: countType, activeFilters: { ...filters } };
+            lastAnalysisResult = { rows: rowsForExport, grandTotals: { ev: gtEvents.size, f: fF, m: fM, t: fF + fM, types: fT }, orgTypes, type: countType, activeFilters: { ...filters } };
         }
 
         function exportToExcel() {
             if (!lastAnalysisResult.rows.length || !window.XLSX) { alert("ບໍ່ມີຂໍ້ມູນໃຫ້ສົ່ງອອກ"); return; }
             const res = lastAnalysisResult;
             const typeLabel = res.type === 'distinct' ? "ນັບແບບບໍ່ຊ້ຳກັນ (Distinct Count)" : "ນັບຈຳນວນທັງໝົດ (Normal Count)";
-            const headers = ["Event Host", "Event Name", "Event ID", "ວັນທີຈັດຕັ້ງປະຕິບັດ", "ຈຳນວນ Event", "ຍິງ", "ຊາຍ", "ລວມຜູ້ເຂົ້າຮ່ວມ", ...res.orgLevels];
+            const headers = ["Event Host", "Event Name", "Event ID", "ວັນທີຈັດຕັ້ງປະຕິບັດ", "ຈຳນວນ Event", "ຍິງ", "ຊາຍ", "ລວມຜູ້ເຂົ້າຮ່ວມ", ...res.orgTypes];
             
             const getFilterTxt = (arr) => (arr && arr.length > 0) ? arr.join(', ') : "ທັງໝົດ";
             
             const wsData = [
-                ["AppSheet Analysis Report - Organization Level Report"],
+                ["AppSheet Analysis Report - Organization Type Report"],
                 ["ວັນທີສະຫຼຸບ:", new Date().toLocaleDateString()],
                 ["ຮູບແບບການນັບ:", typeLabel],
                 [],
@@ -574,6 +586,7 @@
                 ["Level:", getFilterTxt(res.activeFilters.level)],
                 ["Date Range:", getFilterTxt(res.activeFilters.date)],
                 ["Participant Type:", getFilterTxt(res.activeFilters.participantType)],
+                ["Org. Level:", getFilterTxt(res.activeFilters.orgLevel)],
                 [],
                 headers
             ];
@@ -582,24 +595,24 @@
                 { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
                 { s: { r: 4, c: 0 }, e: { r: 4, c: 1 } }
             ];
-            for(let i=5; i<=9; i++) merges.push({ s: { r: i, c: 1 }, e: { r: i, c: headers.length - 1 } });
+            for(let i=5; i<=10; i++) merges.push({ s: { r: i, c: 1 }, e: { r: i, c: headers.length - 1 } });
 
-            let cur = 11;
+            let cur = 12; 
             res.rows.forEach(r => {
                 if (r.isFirst && r.hostCount > 1) merges.push({ s: { r: cur, c: 0 }, e: { r: cur + r.hostCount - 1, c: 0 } });
-                wsData.push([r.host, r.name, r.ids, r.date, r.evC, r.f, r.m, r.tot, ...r.levelCounts]);
+                wsData.push([r.host, r.name, r.ids, r.date, r.evC, r.f, r.m, r.tot, ...r.typeCounts]);
                 cur++;
             });
             
-            wsData.push([`ລວມທັງໝົດ (${res.type === 'distinct' ? 'ບໍ່ຊ້ຳ' : 'ທັງໝົດ'})`, "", "", "", res.grandTotals.ev, res.grandTotals.f, res.grandTotals.m, res.grandTotals.t, ...res.grandTotals.levels]);
+            wsData.push([`ລວມທັງໝົດ (${res.type === 'distinct' ? 'ບໍ່ຊ້ຳ' : 'ທັງໝົດ'})`, "", "", "", res.grandTotals.ev, res.grandTotals.f, res.grandTotals.m, res.grandTotals.t, ...res.grandTotals.types]);
             merges.push({ s: { r: cur, c: 0 }, e: { r: cur, c: 3 } });
 
             const ws = XLSX.utils.aoa_to_sheet(wsData);
             ws['!merges'] = merges;
-            ws['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, ...res.orgLevels.map(() => ({ wch: 15 }))];
+            ws['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, ...res.orgTypes.map(() => ({ wch: 15 }))];
             
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Org_Report");
+            XLSX.utils.book_append_sheet(wb, ws, "Org_Type_Report");
             XLSX.writeFile(wb, `AppSheet_Analysis_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
         }
     </script>
