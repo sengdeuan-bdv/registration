@@ -117,13 +117,12 @@
                     </div>
                 </div>
                 
-                <div id="filterBody" class="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 bg-white">
+                <div id="filterBody" class="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 bg-white">
                     <div id="filter_domain" class="filter-group"></div>
                     <div id="filter_type" class="filter-group"></div>
                     <div id="filter_level" class="filter-group"></div>
                     <div id="filter_date" class="filter-group"></div>
                     <div id="filter_participantType" class="filter-group"></div>
-                    <div id="filter_orgLevel" class="filter-group"></div>
                 </div>
             </section>
 
@@ -185,7 +184,7 @@
 
     <script>
         let rawData = [];
-        let filters = { domain: [], type: [], level: [], date: [], participantType: [], orgLevel: [] };
+        let filters = { domain: [], type: [], level: [], date: [], participantType: [] };
         let filterOptions = {};
         let isFilterPanelOpen = true;
         let activeDropdownId = null;
@@ -280,15 +279,14 @@
         }
 
         function resetFilters() {
-            filters = { domain: [], type: [], level: [], date: [], participantType: [], orgLevel: [] };
-            const domainSet = new Set(), typeSet = new Set(), levelSet = new Set(), partTypeSet = new Set(), dateSet = new Set(), orgLevelSet = new Set();
+            filters = { domain: [], type: [], level: [], date: [], participantType: [] };
+            const domainSet = new Set(), typeSet = new Set(), levelSet = new Set(), partTypeSet = new Set(), dateSet = new Set();
             
             rawData.forEach(row => {
                 if (row['Event Domain (Virtual)']) domainSet.add(row['Event Domain (Virtual)']);
                 if (row['Event type (Virtual)']) typeSet.add(row['Event type (Virtual)']);
                 if (row['Event level (Virtual)']) levelSet.add(row['Event level (Virtual)']);
                 if (row['Participant type']) partTypeSet.add(row['Participant type']);
-                if (row['Participant Organization Level (Virtual)']) orgLevelSet.add(row['Participant Organization Level (Virtual)']);
                 if (row['Event Start date (Virtual)']) dateSet.add(getMonthYear(row['Event Start date (Virtual)']));
             });
             
@@ -305,7 +303,6 @@
                 type: Array.from(typeSet).sort(),
                 level: Array.from(levelSet).sort(),
                 participantType: Array.from(partTypeSet).sort(),
-                orgLevel: Array.from(orgLevelSet).sort(),
                 date: Object.keys(dateGroups).sort((a, b) => b.localeCompare(a)).map(y => ({ year: y, months: dateGroups[y].sort() }))
             };
         }
@@ -321,8 +318,7 @@
                 { id: 'type', label: 'Event Type', options: filterOptions.type, container: 'filter_type' },
                 { id: 'level', label: 'Event Level', options: filterOptions.level, container: 'filter_level' },
                 { id: 'date', label: 'Date (ປີ/ເດືອນ)', options: filterOptions.date, container: 'filter_date', isDate: true },
-                { id: 'participantType', label: 'Part. Type', options: filterOptions.participantType, container: 'filter_participantType' },
-                { id: 'orgLevel', label: 'Org. Level', options: filterOptions.orgLevel, container: 'filter_orgLevel' }
+                { id: 'participantType', label: 'Part. Type', options: filterOptions.participantType, container: 'filter_participantType' }
             ];
             
             configs.forEach(conf => {
@@ -431,7 +427,7 @@
         function handleFilterClear(id) { filters[id] = []; updateUI(); }
         
         function clearAllFilters() { 
-            filters = { domain: [], type: [], level: [], date: [], participantType: [], orgLevel: [] }; 
+            filters = { domain: [], type: [], level: [], date: [], participantType: [] }; 
             activeDropdownId = null; 
             updateUI(); 
         }
@@ -443,7 +439,6 @@
                        (filters.type.length === 0 || filters.type.includes(row['Event type (Virtual)'])) &&
                        (filters.level.length === 0 || filters.level.includes(row['Event level (Virtual)'])) &&
                        (filters.participantType.length === 0 || filters.participantType.includes(row['Participant type'])) &&
-                       (filters.orgLevel.length === 0 || filters.orgLevel.includes(row['Participant Organization Level (Virtual)'])) &&
                        (filters.date.length === 0 || filters.date.includes(dDate));
             });
 
@@ -586,7 +581,6 @@
                 ["Level:", getFilterTxt(res.activeFilters.level)],
                 ["Date Range:", getFilterTxt(res.activeFilters.date)],
                 ["Participant Type:", getFilterTxt(res.activeFilters.participantType)],
-                ["Org. Level:", getFilterTxt(res.activeFilters.orgLevel)],
                 [],
                 headers
             ];
@@ -595,9 +589,9 @@
                 { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
                 { s: { r: 4, c: 0 }, e: { r: 4, c: 1 } }
             ];
-            for(let i=5; i<=10; i++) merges.push({ s: { r: i, c: 1 }, e: { r: i, c: headers.length - 1 } });
+            for(let i=5; i<=9; i++) merges.push({ s: { r: i, c: 1 }, e: { r: i, c: headers.length - 1 } });
 
-            let cur = 12; 
+            let cur = 11; 
             res.rows.forEach(r => {
                 if (r.isFirst && r.hostCount > 1) merges.push({ s: { r: cur, c: 0 }, e: { r: cur + r.hostCount - 1, c: 0 } });
                 wsData.push([r.host, r.name, r.ids, r.date, r.evC, r.f, r.m, r.tot, ...r.typeCounts]);
