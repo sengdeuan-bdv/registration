@@ -87,6 +87,10 @@
                 </div>
             </div>
             <div class="flex items-center gap-2 w-full md:w-auto">
+                <button onclick="openManual()" class="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-100 text-slate-700 hover:bg-slate-200 px-4 py-2 rounded-lg font-bold transition-all border border-slate-200 text-xs shadow-sm">
+                    <i data-lucide="book-open" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">ຄູ່ມືນຳໃຊ້</span>
+                </button>
                 <input type="file" id="csvFileInput" accept=".csv" class="hidden" />
                 <button onclick="document.getElementById('csvFileInput').click()" class="flex-1 md:flex-none flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-lg font-bold transition-all border border-indigo-200 text-xs shadow-sm">
                     <i data-lucide="upload-cloud" class="w-4 h-4"></i>
@@ -117,7 +121,6 @@
                     </div>
                 </div>
                 
-                <!-- Updated Grid to fit 6 filters -->
                 <div id="filterBody" class="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 bg-white">
                     <div id="filter_host" class="filter-group"></div>
                     <div id="filter_domain" class="filter-group"></div>
@@ -148,6 +151,16 @@
                     </div>
                     <div class="flex items-center gap-2">
                         <p id="recordCountLabel" class="text-[9px] text-slate-400 font-bold uppercase tracking-wider mr-2"></p>
+                        <!-- Show All Rows Button (Hidden by default) -->
+                        <button id="showRowsBtn" onclick="showAllRows()" class="hidden flex items-center justify-center gap-1 px-3 py-1.5 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg font-bold transition-all shadow-sm active:scale-95 text-[10px]">
+                            <i data-lucide="list-restart" class="w-3.5 h-3.5"></i>
+                            ສະແດງທຸກແຖວ
+                        </button>
+                        <!-- Show All Columns Button (Hidden by default) -->
+                        <button id="showColsBtn" onclick="showAllColumns()" class="hidden flex items-center justify-center gap-1 px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-bold transition-all shadow-sm active:scale-95 text-[10px]">
+                            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                            ສະແດງທຸກຖັນ
+                        </button>
                         <button onclick="exportToExcel()" class="flex items-center justify-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition-all shadow-sm active:scale-95 border-b-2 border-emerald-800 text-[10px]">
                             <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
                             ສົ່ງອອກລາຍງານ Excel (.xlsx)
@@ -182,6 +195,62 @@
                 ເລືອກໄຟລ໌ CSV ດຽວນີ້
             </button>
         </section>
+
+        <!-- Manual Modal -->
+        <div id="manualModal" class="hidden fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 opacity-0 transition-opacity duration-300">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col transform scale-95 transition-transform duration-300" id="manualContent">
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 rounded-t-2xl">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-indigo-100 text-indigo-700 rounded-lg">
+                            <i data-lucide="book-open" class="w-5 h-5"></i>
+                        </div>
+                        <h2 class="text-lg font-bold text-slate-800">ຄູ່ມືການນຳໃຊ້ລະບົບ (User Manual)</h2>
+                    </div>
+                    <button onclick="closeManual()" class="text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div class="p-6 overflow-y-auto custom-scrollbar space-y-6 text-sm text-slate-600">
+                    <div>
+                        <h3 class="font-bold text-indigo-900 text-base mb-2 flex items-center gap-2"><i data-lucide="upload" class="w-4 h-4 text-indigo-500"></i> 1. ການນຳເຂົ້າຂໍ້ມູນ (Upload Data)</h3>
+                        <p class="leading-relaxed pl-6">ກົດປຸ່ມ <strong>"ອັບໂຫຼດ CSV"</strong> ຢູ່ແຖບດ້ານເທິງ ເພື່ອເລືອກໄຟລ໌ຂໍ້ມູນທີ່ທ່ານ Export ອອກມາຈາກ AppSheet. ລະບົບຈະທຳການອ່ານ ແລະ ສ້າງຕາຕະລາງສະຫຼຸບຜົນໃຫ້ອັດຕະໂນມັດ.</p>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-indigo-900 text-base mb-2 flex items-center gap-2"><i data-lucide="filter" class="w-4 h-4 text-indigo-500"></i> 2. ການກັ່ນຕອງຂໍ້ມູນ (Filters)</h3>
+                        <ul class="list-disc pl-10 space-y-1.5 leading-relaxed">
+                            <li>ສາມາດກັ່ນຕອງໄດ້ຫຼາຍເງື່ອນໄຂ (Host, Domain, Type, Level, Date, Participant Type).</li>
+                            <li>ສາມາດເລືອກໄດ້ຫຼາຍອັນພ້ອມກັນ (Multi-select) ໃນແຕ່ລະໝວດໝູ່.</li>
+                            <li>ຫຼັງຈາກເລືອກແລ້ວ ໃຫ້ກົດປຸ່ມ <strong>"ຕົກລົງ (ປິດ)"</strong> ຢູ່ລຸ່ມສຸດຂອງໜ້າຕ່າງ Filter ນັ້ນ.</li>
+                            <li>ກົດປຸ່ມ <strong>"ລ້າງການກອງທັງໝົດ"</strong> ຢູ່ມຸມຂວາເທິງຂອງແຜງກັ່ນຕອງ ເພື່ອຍົກເລີກເງື່ອນໄຂທັງໝົດ.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-indigo-900 text-base mb-2 flex items-center gap-2"><i data-lucide="calculator" class="w-4 h-4 text-indigo-500"></i> 3. ຮູບແບບການຄິດໄລ່ (Count Type)</h3>
+                        <ul class="list-disc pl-10 space-y-1.5 leading-relaxed">
+                            <li><strong>Count (ນັບທັງໝົດ):</strong> ລະບົບຈະນັບທຸກໆແຖວຂໍ້ມູນ (ເໝາະສຳລັບການນັບຈຳນວນຄັ້ງການເຂົ້າຮ່ວມ).</li>
+                            <li><strong>Distinct (ນັບບໍ່ຊ້ຳ ID):</strong> ລະບົບຈະນັບສະເພາະ <code>Participant ID</code> ທີ່ບໍ່ຊ້ຳກັນ (ປ້ອງກັນການນັບບຸກຄົນດຽວກັນຊ້ຳຊ້ອນກັນ).</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-indigo-900 text-base mb-2 flex items-center gap-2"><i data-lucide="eye-off" class="w-4 h-4 text-indigo-500"></i> 4. ການເຊື່ອງຖັນ ແລະ ເຊື່ອງແຖວ</h3>
+                        <ul class="list-disc pl-10 space-y-1.5 leading-relaxed">
+                            <li><strong>ເຊື່ອງຖັນ (Hide Column):</strong> ກົດປຸ່ມຮູບຕາປິດ 👁️ ຢູ່ເທິງຫົວຂໍ້ຖັນທີ່ທ່ານບໍ່ຕ້ອງການໃຫ້ສະແດງໃນລາຍງານ.</li>
+                            <li><strong>ເຊື່ອງແຖວ (Hide Row):</strong> ເອົາເມົ້າໄປຊີ້ໃສ່ຊື່ <strong>Event Name</strong> ໃນຕາຕະລາງ, ຈະມີໄອຄອນຕາປະກົດຂຶ້ນ. ເມື່ອກົດເຊື່ອງ ແຖວນັ້ນຈະຖືກເຊື່ອງ ແລະ ຕົວເລກຈະຖືກຕັດອອກຈາກການຄຳນວນຜົນລວມ (Grand Total).</li>
+                            <li>ສາມາດກົດປຸ່ມ <strong>"ສະແດງທຸກຖັນ"</strong> ຫຼື <strong>"ສະແດງທຸກແຖວ"</strong> ທີ່ຢູ່ຂ້າງປຸ່ມ Export ເພື່ອຮຽກຂໍ້ມູນທີ່ເຊື່ອງໄວ້ກັບຄືນມາໄດ້ສະເໝີ.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-indigo-900 text-base mb-2 flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4 text-indigo-500"></i> 5. ການສົ່ງອອກ (Export Excel)</h3>
+                        <p class="leading-relaxed pl-6">ກົດປຸ່ມ <strong>"ສົ່ງອອກລາຍງານ Excel"</strong> ເພື່ອດາວໂຫຼດໄຟລ໌ <code>.xlsx</code>. ໄຟລ໌ Excel ຈະສະແດງສະເພາະຂໍ້ມູນທີ່ທ່ານກັ່ນຕອງ ແລະ ບໍ່ນຳເອົາຖັນ ຫຼື ແຖວທີ່ທ່ານເຊື່ອງໄວ້ອອກໄປນຳ, ພ້ອມທັງມີການສະແດງເງື່ອນໄຂ Filter ທີ່ໃຊ້ທັງໝົດໄວ້ເທິງຫົວຕາຕະລາງ.</p>
+                    </div>
+                </div>
+                <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex justify-end">
+                    <button onclick="closeManual()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-md active:scale-95">
+                        ເຂົ້າໃຈແລ້ວ (ປິດໜ້າຈໍ)
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -192,11 +261,63 @@
         let activeDropdownId = null;
         let countType = 'normal';
         let lastAnalysisResult = { rows: [], grandTotals: {}, orgTypes: [] };
+        let hiddenColumns = new Set();
+        let hiddenRows = new Set(); // ຕິດຕາມ Event Name ທີ່ຖືກເຊື່ອງ
 
         window.onload = () => {
             lucide.createIcons();
             setupFileUpload();
         };
+
+        function openManual() {
+            const modal = document.getElementById('manualModal');
+            const content = document.getElementById('manualContent');
+            modal.classList.remove('hidden');
+            // Trigger transition
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeManual() {
+            const modal = document.getElementById('manualModal');
+            const content = document.getElementById('manualContent');
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        // Close modal when clicking outside
+        document.addEventListener('click', (e) => {
+            const modal = document.getElementById('manualModal');
+            if (e.target === modal) {
+                closeManual();
+            }
+        });
+
+        function hideCol(colKey) {
+            hiddenColumns.add(colKey);
+            renderTable();
+        }
+
+        function showAllColumns() {
+            hiddenColumns.clear();
+            renderTable();
+        }
+
+        function hideRow(host, name) {
+            // ເກັບ Key ເປັນການປະສົມລະຫວ່າງ Host ກັບ Name ເພື່ອໃຫ້ Unique
+            hiddenRows.add(host + '|||' + name);
+            renderTable();
+        }
+
+        function showAllRows() {
+            hiddenRows.clear();
+            renderTable();
+        }
 
         function setCountType(type) {
             countType = type;
@@ -239,6 +360,8 @@
 
         function processData(csvText) {
             rawData = parseCSV(csvText);
+            hiddenColumns.clear();
+            hiddenRows.clear();
             resetFilters();
             updateUI();
             document.getElementById('welcomeScreen').classList.add('hidden');
@@ -434,10 +557,19 @@
         function clearAllFilters() { 
             filters = { host: [], domain: [], type: [], level: [], date: [], participantType: [] }; 
             activeDropdownId = null; 
+            hiddenRows.clear();
             updateUI(); 
         }
 
         function renderTable() {
+            const isHidden = (col) => hiddenColumns.has(col) ? 'hidden' : '';
+
+            // Update UI for show buttons
+            document.getElementById('showColsBtn').classList.toggle('hidden', hiddenColumns.size === 0);
+            document.getElementById('showRowsBtn').classList.toggle('hidden', hiddenRows.size === 0);
+
+            let processedRecordsCount = 0;
+
             const filtered = rawData.filter(row => {
                 const dDate = getMonthYear(row['Event Start date (Virtual)']);
                 return (filters.host.length === 0 || filters.host.includes(row['Event Host (Virtual)'])) &&
@@ -447,8 +579,6 @@
                        (filters.participantType.length === 0 || filters.participantType.includes(row['Participant type'])) &&
                        (filters.date.length === 0 || filters.date.includes(dDate));
             });
-
-            document.getElementById('recordCountLabel').innerText = `ພົບ ${filtered.length} ລາຍການ`;
 
             const orgTypesSet = new Set();
             filtered.forEach(row => { if (row['Participant Organization type (Virtual)']) orgTypesSet.add(row['Participant Organization type (Virtual)']); });
@@ -461,6 +591,11 @@
                 const gender = row['Participant Gender (Virtual)'];
                 const partId = row['Participant ID'] || 'no-id';
                 const orgType = row['Participant Organization type (Virtual)'] || '(ບໍ່ລະບຸ)';
+                
+                // ກວດສອບວ່າແຖວນີ້ຖືກເຊື່ອງໄວ້ຫຼືບໍ່ ຖ້າເຊື່ອງໃຫ້ຂ້າມການຄິດໄລ່ໄປເລີຍ
+                if (hiddenRows.has(host + '|||' + name)) return;
+                
+                processedRecordsCount++; // ນັບສະເພາະແຖວທີ່ຖືກນຳມາຄິດໄລ່ແທ້ໆ
                 
                 if (!grouped[host]) grouped[host] = {};
                 if (!grouped[host][name]) grouped[host][name] = { 
@@ -481,18 +616,38 @@
                 else if (gender?.toLowerCase() === 'male' || gender === 'ຊາຍ') { g.maleNormal++; g.maleDistinct.add(partId); }
             });
 
+            document.getElementById('recordCountLabel').innerText = `ຄຳນວນ ${processedRecordsCount} ລາຍການ`;
+
             const head = document.getElementById('tableHead');
             head.innerHTML = `
                 <tr class="bg-[#1e3a8a] text-white">
-                    <th class="sticky left-0 bg-[#1e3a8a] z-30 font-bold uppercase text-[10px] w-32 border-b border-indigo-900">Event Host</th>
-                    <th class="font-bold uppercase text-[10px] border-b border-indigo-900">Event Name</th>
-                    <th class="font-bold uppercase text-[10px] border-b border-indigo-900">Event ID</th>
-                    <th class="font-bold uppercase text-[10px] border-b border-indigo-900">ວັນທີ</th>
-                    <th class="text-center font-bold uppercase text-[10px] bg-blue-800/50 w-16 border-b border-indigo-900 text-blue-100">Event</th>
-                    <th class="text-center font-bold uppercase text-[10px] bg-pink-800/50 w-12 border-b border-indigo-900 text-pink-100">ຍິງ</th>
-                    <th class="text-center font-bold uppercase text-[10px] bg-sky-800/50 w-12 border-b border-indigo-900 text-sky-100">ຊາຍ</th>
-                    <th class="text-center font-bold uppercase text-[10px] bg-indigo-900/60 w-16 border-b border-indigo-900">ລວມ</th>
-                    ${orgTypes.map(t => `<th class="text-center font-bold uppercase text-[10px] bg-slate-800/50 border-b border-indigo-900">${t}</th>`).join('')}
+                    <th class="sticky left-0 bg-[#1e3a8a] z-30 font-bold uppercase text-[10px] w-32 border-b border-indigo-900 ${isHidden('host')}">
+                        <div class="flex items-center justify-between gap-1"><span>Event Host</span> <button onclick="hideCol('host')" title="ເຊື່ອງຖັນ" class="opacity-50 hover:opacity-100 p-0.5"><i data-lucide="eye-off" class="w-3 h-3"></i></button></div>
+                    </th>
+                    <th class="font-bold uppercase text-[10px] border-b border-indigo-900 ${isHidden('name')}">
+                        <div class="flex items-center justify-between gap-1"><span>Event Name</span> <button onclick="hideCol('name')" title="ເຊື່ອງຖັນ" class="opacity-50 hover:opacity-100 p-0.5"><i data-lucide="eye-off" class="w-3 h-3"></i></button></div>
+                    </th>
+                    <th class="font-bold uppercase text-[10px] border-b border-indigo-900 ${isHidden('id')}">
+                        <div class="flex items-center justify-between gap-1"><span>Event ID</span> <button onclick="hideCol('id')" title="ເຊື່ອງຖັນ" class="opacity-50 hover:opacity-100 p-0.5"><i data-lucide="eye-off" class="w-3 h-3"></i></button></div>
+                    </th>
+                    <th class="font-bold uppercase text-[10px] border-b border-indigo-900 ${isHidden('date')}">
+                        <div class="flex items-center justify-between gap-1"><span>ວັນທີ</span> <button onclick="hideCol('date')" title="ເຊື່ອງຖັນ" class="opacity-50 hover:opacity-100 p-0.5"><i data-lucide="eye-off" class="w-3 h-3"></i></button></div>
+                    </th>
+                    <th class="font-bold uppercase text-[10px] bg-blue-800/50 w-16 border-b border-indigo-900 text-blue-100 ${isHidden('eventCount')}">
+                        <div class="flex items-center justify-between gap-1 px-1"><span>Event</span> <button onclick="hideCol('eventCount')" title="ເຊື່ອງຖັນ" class="opacity-50 hover:opacity-100 p-0.5"><i data-lucide="eye-off" class="w-3 h-3"></i></button></div>
+                    </th>
+                    <th class="font-bold uppercase text-[10px] bg-pink-800/50 w-12 border-b border-indigo-900 text-pink-100 ${isHidden('female')}">
+                        <div class="flex items-center justify-between gap-1 px-1"><span>ຍິງ</span> <button onclick="hideCol('female')" title="ເຊື່ອງຖັນ" class="opacity-50 hover:opacity-100 p-0.5"><i data-lucide="eye-off" class="w-3 h-3"></i></button></div>
+                    </th>
+                    <th class="font-bold uppercase text-[10px] bg-sky-800/50 w-12 border-b border-indigo-900 text-sky-100 ${isHidden('male')}">
+                        <div class="flex items-center justify-between gap-1 px-1"><span>ຊາຍ</span> <button onclick="hideCol('male')" title="ເຊື່ອງຖັນ" class="opacity-50 hover:opacity-100 p-0.5"><i data-lucide="eye-off" class="w-3 h-3"></i></button></div>
+                    </th>
+                    <th class="font-bold uppercase text-[10px] bg-indigo-900/60 w-16 border-b border-indigo-900 text-white ${isHidden('total')}">
+                        <div class="flex items-center justify-between gap-1 px-1"><span>ລວມ</span> <button onclick="hideCol('total')" title="ເຊື່ອງຖັນ" class="opacity-50 hover:opacity-100 p-0.5"><i data-lucide="eye-off" class="w-3 h-3"></i></button></div>
+                    </th>
+                    ${orgTypes.map(t => `<th class="font-bold uppercase text-[10px] bg-slate-800/50 border-b border-indigo-900 text-white min-w-[80px] ${isHidden(t)}">
+                        <div class="flex items-center justify-between gap-1 px-1"><span>${t}</span> <button onclick="hideCol('${t}')" title="ເຊື່ອງຖັນ" class="opacity-50 hover:opacity-100 p-0.5"><i data-lucide="eye-off" class="w-3 h-3"></i></button></div>
+                    </th>`).join('')}
                 </tr>`;
 
             const tbody = document.getElementById('tableBody');
@@ -530,20 +685,31 @@
                         return count;
                     });
 
+                    // ປ້ອງກັນ error single quotes ໃນ onclick
+                    const escHost = host.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+                    const escName = name.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+
                     const tr = document.createElement('tr');
                     tr.className = 'group hover:bg-slate-50 transition-colors';
-                    let hTd = i === 0 ? `<td rowspan="${events.length}" class="sticky left-0 bg-white align-top pt-2 font-bold text-slate-900 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] truncate max-w-[120px] group-hover:bg-slate-50 border-r border-slate-200">${host}</td>` : '';
+                    let hTd = i === 0 ? `<td rowspan="${events.length}" class="sticky left-0 bg-white align-top pt-2 font-bold text-slate-900 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] truncate max-w-[120px] group-hover:bg-slate-50 border-r border-slate-200 ${isHidden('host')}" title="${host}">${host}</td>` : '';
                     
                     tr.innerHTML = `
                         ${hTd}
-                        <td class="text-slate-700 min-w-[180px] leading-tight font-medium">${name}</td>
-                        <td class="text-slate-500 min-w-[100px] text-[9px]">${Array.from(g.events).join(', ')}</td>
-                        <td class="text-slate-500 text-[9px]">${Array.from(g.dates).join(', ')}</td>
-                        <td class="text-center font-bold text-blue-700 bg-blue-50/20">${g.events.size}</td>
-                        <td class="text-center font-bold text-pink-600 bg-pink-50/20">${cF.toLocaleString()}</td>
-                        <td class="text-center font-bold text-sky-600 bg-sky-50/30">${cM.toLocaleString()}</td>
-                        <td class="text-center font-bold text-indigo-700 bg-indigo-50/40">${(cF + cM).toLocaleString()}</td>
-                        ${typeCounts.map(c => `<td class="text-center text-slate-600 bg-slate-50/30">${c > 0 ? c.toLocaleString() : '-'}</td>`).join('')}`;
+                        <td class="text-slate-700 min-w-[180px] leading-tight font-medium ${isHidden('name')}">
+                            <div class="flex items-center justify-between gap-2">
+                                <span>${name}</span>
+                                <button onclick="hideRow('${escHost}', '${escName}')" title="ເຊື່ອງແຖວນີ້ ແລະ ບໍ່ນຳໄປຄິດໄລ່" class="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-all">
+                                    <i data-lucide="eye-off" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                        </td>
+                        <td class="text-slate-500 min-w-[100px] text-[9px] ${isHidden('id')}">${Array.from(g.events).join(', ')}</td>
+                        <td class="text-slate-500 text-[9px] ${isHidden('date')}">${Array.from(g.dates).join(', ')}</td>
+                        <td class="text-center font-bold text-blue-700 bg-blue-50/20 ${isHidden('eventCount')}">${g.events.size}</td>
+                        <td class="text-center font-bold text-pink-600 bg-pink-50/20 ${isHidden('female')}">${cF.toLocaleString()}</td>
+                        <td class="text-center font-bold text-sky-600 bg-sky-50/30 ${isHidden('male')}">${cM.toLocaleString()}</td>
+                        <td class="text-center font-bold text-indigo-700 bg-indigo-50/40 ${isHidden('total')}">${(cF + cM).toLocaleString()}</td>
+                        ${typeCounts.map((c, idx) => `<td class="text-center text-slate-600 bg-slate-50/30 ${isHidden(orgTypes[idx])}">${c > 0 ? c.toLocaleString() : '-'}</td>`).join('')}`;
                     tbody.appendChild(tr);
 
                     rowsForExport.push({ host, isFirst: i === 0, hostCount: events.length, name, ids: Array.from(g.events).join(', '), date: Array.from(g.dates).join(', '), evC: g.events.size, f: cF, m: cM, tot: cF+cM, typeCounts });
@@ -554,26 +720,52 @@
             const fM = countType === 'distinct' ? gtMDist.size : gtMNormal;
             const fT = orgTypes.map(t => countType === 'distinct' ? gtOrgTypes[t].distinct.size : gtOrgTypes[t].normal);
 
+            const firstCols = ['host', 'name', 'id', 'date'];
+            const visibleFirstCols = firstCols.filter(c => !hiddenColumns.has(c));
+            let firstColSpanHTML = '';
+            
+            if (visibleFirstCols.length > 0) {
+                firstColSpanHTML = `<td colspan="${visibleFirstCols.length}" class="px-3 py-2 text-right border-r border-slate-700 sticky left-0 bg-slate-900 z-30 uppercase tracking-widest text-[9px]">Grand Total (${countType === 'distinct' ? 'ບໍ່ຊ້ຳ' : 'ທັງໝົດ'})</td>`;
+            }
+
             const ftr = document.createElement('tr');
             ftr.className = 'bg-slate-900 text-white font-bold sticky bottom-0 z-20';
             ftr.innerHTML = `
-                <td colspan="4" class="px-3 py-2 text-right border-r border-slate-700 sticky left-0 bg-slate-900 z-30 uppercase tracking-widest text-[9px]">Grand Total (${countType === 'distinct' ? 'ບໍ່ຊ້ຳ' : 'ທັງໝົດ'})</td>
-                <td class="text-center bg-blue-900 text-[11px]">${gtEvents.size}</td>
-                <td class="text-center bg-pink-900 text-[11px]">${fF.toLocaleString()}</td>
-                <td class="text-center bg-sky-900 text-[11px]">${fM.toLocaleString()}</td>
-                <td class="text-center bg-indigo-900 border-l border-indigo-700 text-[11px]">${(fF + fM).toLocaleString()}</td>
-                ${fT.map(v => `<td class="text-center bg-slate-800 text-[11px]">${v.toLocaleString()}</td>`).join('')}`;
+                ${firstColSpanHTML}
+                <td class="text-center bg-blue-900 text-[11px] ${isHidden('eventCount')}">${gtEvents.size}</td>
+                <td class="text-center bg-pink-900 text-[11px] ${isHidden('female')}">${fF.toLocaleString()}</td>
+                <td class="text-center bg-sky-900 text-[11px] ${isHidden('male')}">${fM.toLocaleString()}</td>
+                <td class="text-center bg-indigo-900 border-l border-indigo-700 text-[11px] ${isHidden('total')}">${(fF + fM).toLocaleString()}</td>
+                ${fT.map((v, idx) => `<td class="text-center bg-slate-800 text-[11px] ${isHidden(orgTypes[idx])}">${v.toLocaleString()}</td>`).join('')}`;
             tbody.appendChild(ftr);
 
             lastAnalysisResult = { rows: rowsForExport, grandTotals: { ev: gtEvents.size, f: fF, m: fM, t: fF + fM, types: fT }, orgTypes, type: countType, activeFilters: { ...filters } };
+            
+            lucide.createIcons();
         }
 
         function exportToExcel() {
             if (!lastAnalysisResult.rows.length || !window.XLSX) { alert("ບໍ່ມີຂໍ້ມູນໃຫ້ສົ່ງອອກ"); return; }
             const res = lastAnalysisResult;
             const typeLabel = res.type === 'distinct' ? "ນັບແບບບໍ່ຊ້ຳກັນ (Distinct Count)" : "ນັບຈຳນວນທັງໝົດ (Normal Count)";
-            const headers = ["Event Host", "Event Name", "Event ID", "ວັນທີຈັດຕັ້ງປະຕິບັດ", "ຈຳນວນ Event", "ຍິງ", "ຊາຍ", "ລວມຜູ້ເຂົ້າຮ່ວມ", ...res.orgTypes];
             
+            const colDef = [
+                { key: 'host', label: 'Event Host', wch: 20 },
+                { key: 'name', label: 'Event Name', wch: 30 },
+                { key: 'id', label: 'Event ID', wch: 20 },
+                { key: 'date', label: 'ວັນທີຈັດຕັ້ງປະຕິບັດ', wch: 20 },
+                { key: 'eventCount', label: 'ຈຳນວນ Event', wch: 12 },
+                { key: 'female', label: 'ຍິງ', wch: 10 },
+                { key: 'male', label: 'ຊາຍ', wch: 10 },
+                { key: 'total', label: 'ລວມຜູ້ເຂົ້າຮ່ວມ', wch: 15 }
+            ];
+            res.orgTypes.forEach(t => {
+                colDef.push({ key: t, label: t, wch: 15 });
+            });
+
+            const visibleCols = colDef.filter(c => !hiddenColumns.has(c.key));
+            const headers = visibleCols.map(c => c.label);
+
             const getFilterTxt = (arr) => (arr && arr.length > 0) ? arr.join(', ') : "ທັງໝົດ";
             
             const wsData = [
@@ -593,24 +785,65 @@
             ];
 
             const merges = [
-                { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
+                { s: { r: 0, c: 0 }, e: { r: 0, c: Math.max(1, headers.length - 1) } },
                 { s: { r: 4, c: 0 }, e: { r: 4, c: 1 } }
             ];
-            for(let i=5; i<=10; i++) merges.push({ s: { r: i, c: 1 }, e: { r: i, c: headers.length - 1 } });
+            for(let i=5; i<=10; i++) merges.push({ s: { r: i, c: 1 }, e: { r: i, c: Math.max(1, headers.length - 1) } });
 
-            let cur = 13; // Start data pushing at index 13 (0-indexed array)
+            let cur = 13; 
+            const isHostVisible = !hiddenColumns.has('host');
+
             res.rows.forEach(r => {
-                if (r.isFirst && r.hostCount > 1) merges.push({ s: { r: cur, c: 0 }, e: { r: cur + r.hostCount - 1, c: 0 } });
-                wsData.push([r.host, r.name, r.ids, r.date, r.evC, r.f, r.m, r.tot, ...r.typeCounts]);
+                if (isHostVisible && r.isFirst && r.hostCount > 1) merges.push({ s: { r: cur, c: 0 }, e: { r: cur + r.hostCount - 1, c: 0 } });
+                
+                const rowData = [];
+                visibleCols.forEach(c => {
+                    if (c.key === 'host') rowData.push(r.host);
+                    else if (c.key === 'name') rowData.push(r.name);
+                    else if (c.key === 'id') rowData.push(r.ids);
+                    else if (c.key === 'date') rowData.push(r.date);
+                    else if (c.key === 'eventCount') rowData.push(r.evC);
+                    else if (c.key === 'female') rowData.push(r.f);
+                    else if (c.key === 'male') rowData.push(r.m);
+                    else if (c.key === 'total') rowData.push(r.tot);
+                    else {
+                        const tIdx = res.orgTypes.indexOf(c.key);
+                        rowData.push(r.typeCounts[tIdx]);
+                    }
+                });
+                wsData.push(rowData);
                 cur++;
             });
             
-            wsData.push([`ລວມທັງໝົດ (${res.type === 'distinct' ? 'ບໍ່ຊ້ຳ' : 'ທັງໝົດ'})`, "", "", "", res.grandTotals.ev, res.grandTotals.f, res.grandTotals.m, res.grandTotals.t, ...res.grandTotals.types]);
-            merges.push({ s: { r: cur, c: 0 }, e: { r: cur, c: 3 } });
+            const gtRow = [];
+            const firstGroup = ['host', 'name', 'id', 'date'];
+            const visibleFirstGroup = firstGroup.filter(c => !hiddenColumns.has(c));
+            
+            if (visibleFirstGroup.length > 0) {
+                gtRow.push(`ລວມທັງໝົດ (${res.type === 'distinct' ? 'ບໍ່ຊ້ຳ' : 'ທັງໝົດ'})`);
+                for (let i = 1; i < visibleFirstGroup.length; i++) {
+                    gtRow.push("");
+                }
+                merges.push({ s: { r: cur, c: 0 }, e: { r: cur, c: visibleFirstGroup.length - 1 } });
+            }
 
+            visibleCols.forEach(c => {
+                if (firstGroup.includes(c.key)) return; 
+                if (c.key === 'eventCount') gtRow.push(res.grandTotals.ev);
+                else if (c.key === 'female') gtRow.push(res.grandTotals.f);
+                else if (c.key === 'male') gtRow.push(res.grandTotals.m);
+                else if (c.key === 'total') gtRow.push(res.grandTotals.t);
+                else {
+                    const tIdx = res.orgTypes.indexOf(c.key);
+                    gtRow.push(res.grandTotals.types[tIdx]);
+                }
+            });
+
+            wsData.push(gtRow);
+            
             const ws = XLSX.utils.aoa_to_sheet(wsData);
             ws['!merges'] = merges;
-            ws['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 20 }, { wch: 20 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, ...res.orgTypes.map(() => ({ wch: 15 }))];
+            ws['!cols'] = visibleCols.map(c => ({ wch: c.wch }));
             
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Org_Type_Report");
